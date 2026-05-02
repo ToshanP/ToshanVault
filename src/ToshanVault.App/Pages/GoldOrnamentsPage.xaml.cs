@@ -9,6 +9,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
+using Serilog;
 using ToshanVault.Core.Models;
 using ToshanVault.Data.Repositories;
 using ToshanVault.Importer;
@@ -20,6 +21,8 @@ namespace ToshanVault_App.Pages;
 
 public sealed partial class GoldOrnamentsPage : Page
 {
+    private static readonly Serilog.ILogger _log = Logging.ForContext<GoldOrnamentsPage>();
+
     private readonly GoldItemRepository _repo  = AppHost.GetService<GoldItemRepository>();
     private readonly GoldPriceService   _price = AppHost.GetService<GoldPriceService>();
 
@@ -44,7 +47,7 @@ public sealed partial class GoldOrnamentsPage : Page
             UpdatePriceBanner();
             await ReloadAsync();
         }
-        catch (Exception ex) { ShowError(ex.Message); }
+        catch (Exception ex) { _log.Error(ex, "GoldOrnamentsPage handler failed"); ShowError(FormatError(ex)); }
     }
 
     private async Task ReloadAsync()
@@ -123,7 +126,7 @@ public sealed partial class GoldOrnamentsPage : Page
             await _repo.InsertAsync(dlg.Result!);
             await ReloadAsync();
         }
-        catch (Exception ex) { ShowError(ex.Message); }
+        catch (Exception ex) { _log.Error(ex, "GoldOrnamentsPage handler failed"); ShowError(FormatError(ex)); }
         finally { _busy = false; }
     }
 
@@ -144,7 +147,7 @@ public sealed partial class GoldOrnamentsPage : Page
             await _repo.UpdateAsync(dlg.Result!);
             await ReloadAsync();
         }
-        catch (Exception ex) { ShowError(ex.Message); }
+        catch (Exception ex) { _log.Error(ex, "GoldOrnamentsPage handler failed"); ShowError(FormatError(ex)); }
         finally { _busy = false; }
     }
 
@@ -172,7 +175,7 @@ public sealed partial class GoldOrnamentsPage : Page
             await ReloadAsync();
             ShowInfo($"Deleted '{vm.Description}'.");
         }
-        catch (Exception ex) { ShowError(ex.Message); }
+        catch (Exception ex) { _log.Error(ex, "GoldOrnamentsPage handler failed"); ShowError(FormatError(ex)); }
         finally { _busy = false; }
     }
 
@@ -181,16 +184,32 @@ public sealed partial class GoldOrnamentsPage : Page
         if (_busy) return; _busy = true;
         try
         {
-            var picker = new FileOpenPicker();
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, MainWindow.Hwnd);
-            picker.FileTypeFilter.Add(".xlsx");
-            picker.SuggestedStartLocation = PickerLocationId.Desktop;
-
             var defaultGuess = Path.Combine(@"C:\Toshan\Retirement Plan", "Toshan.xlsx");
+            string? chosenPath = null;
 
-            var file = await picker.PickSingleFileAsync();
-            if (file is null && File.Exists(defaultGuess))
+            try
             {
+                var picker = new FileOpenPicker();
+                WinRT.Interop.InitializeWithWindow.Initialize(picker, MainWindow.Hwnd);
+                picker.FileTypeFilter.Add(".xlsx");
+                // NOTE: SuggestedStartLocation intentionally omitted — Desktop
+                // can throw COMException 0x80004005 in unpackaged WinUI 3 apps
+                // when the folder is OneDrive-redirected.
+                var file = await picker.PickSingleFileAsync();
+                chosenPath = file?.Path;
+            }
+            catch (Exception pickerEx)
+            {
+                _log.Warning(pickerEx, "FileOpenPicker failed — falling back to default path");
+            }
+
+            if (string.IsNullOrEmpty(chosenPath))
+            {
+                if (!File.Exists(defaultGuess))
+                {
+                    ShowError($"File picker unavailable and default file not found: {defaultGuess}");
+                    return;
+                }
                 var ask = new ContentDialog
                 {
                     XamlRoot = this.XamlRoot,
@@ -201,20 +220,36 @@ public sealed partial class GoldOrnamentsPage : Page
                     DefaultButton = ContentDialogButton.Primary,
                 };
                 if (await ask.ShowAsync() != ContentDialogResult.Primary) return;
-                await DoImportAsync(defaultGuess);
-                return;
+                chosenPath = defaultGuess;
             }
-            if (file is null) return;
-            await DoImportAsync(file.Path);
+
+            await DoImportAsync(chosenPath);
         }
-        catch (Exception ex) { ShowError(ex.Message); }
+        catch (Exception ex) { _log.Error(ex, "GoldOrnamentsPage handler failed"); ShowError(FormatError(ex)); }
         finally { _busy = false; }
+    }
+
+    private static string FormatError(Exception ex)
+    {
+        var parts = new List<string>();
+        var cur = ex;
+        while (cur is not null)
+        {
+            var msg = string.IsNullOrWhiteSpace(cur.Message) ? "(no message)" : cur.Message;
+            parts.Add($"{cur.GetType().Name}: {msg}");
+            cur = cur.InnerException;
+        }
+        parts.Add($"(full stack in {Logging.LogFilePath})");
+        return string.Join(" → ", parts);
     }
 
     private async Task DoImportAsync(string path)
     {
+        _log.Information("Gold xlsx import starting from {Path}", path);
         var importer = new GoldImporter(_repo);
         var report = await importer.ImportAsync(path);
+        _log.Information("Gold xlsx import done. Read={Read} Inserted={Inserted} Skipped={Skipped}",
+            report.RowsRead, report.Inserted, report.Skipped);
         await ReloadAsync();
         ShowInfo($"Read {report.RowsRead} rows · inserted {report.Inserted} · skipped {report.Skipped} duplicates.");
     }
@@ -233,7 +268,7 @@ public sealed partial class GoldOrnamentsPage : Page
             else
                 ShowInfo($"Updated · AUD {_currentPrice.PricePerGram24k:N2} per gram (24K).");
         }
-        catch (Exception ex) { ShowError(ex.Message); }
+        catch (Exception ex) { _log.Error(ex, "GoldOrnamentsPage handler failed"); ShowError(FormatError(ex)); }
         finally { _busy = false; RefreshPriceButton.IsEnabled = true; }
     }
 
