@@ -114,6 +114,8 @@ public sealed class Recipe
     public string? ThumbnailPath { get; set; }
     public string? NotesMd { get; set; }
     public bool IsFavourite { get; set; }
+    public bool IsTried { get; set; }
+    public string Category { get; set; } = "Other";
     public DateTimeOffset AddedAt { get; set; }
 }
 

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="ToshanVault_App.Pages.GoldOrnamentsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:dg="using:CommunityToolkit.WinUI.UI.Controls">
+    <Grid Padding="24,16,24,16" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Gold Ornaments" />
+                <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           Text="Inventory of gold &amp; diamond jewellery. Tola is the Indian troy unit (1 tola = 11.6638 g)." />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <Button x:Name="RefreshPriceButton" Content="🔄 Refresh price" Click="RefreshPrice_Click" />
+                <Button x:Name="ImportButton"      Content="📥 Import xlsx"   Click="Import_Click" />
+                <Button x:Name="AddButton"         Content="+ Add"            Click="Add_Click"
+                        Style="{StaticResource AccentButtonStyle}" />
+                <Button x:Name="EditButton"        Content="✏ Edit"           Click="Edit_Click"   IsEnabled="False" />
+                <Button x:Name="DeleteButton"      Content="🗑 Delete"         Click="Delete_Click" IsEnabled="False" />
+            </StackPanel>
+        </Grid>
+
+        <TextBlock x:Name="PriceBanner" Grid.Row="1"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   Text="Price not loaded yet — click ‘Refresh price’ to fetch live AUD/g (24K)." />
+
+        <AutoSuggestBox x:Name="SearchBox" Grid.Row="2"
+                        PlaceholderText="Search description, purity, or notes…"
+                        QueryIcon="Find"
+                        TextChanged="SearchBox_TextChanged" />
+
+        <InfoBar x:Name="InfoBar" Grid.Row="3" IsClosable="True" IsOpen="False" />
+
+        <dg:DataGrid x:Name="Grid" Grid.Row="4"
+                     AutoGenerateColumns="False"
+                     SelectionMode="Single"
+                     IsReadOnly="True"
+                     CanUserSortColumns="True"
+                     GridLinesVisibility="Horizontal"
+                     HeadersVisibility="Column"
+                     SelectionChanged="Grid_SelectionChanged"
+                     DoubleTapped="Grid_DoubleTapped">
+            <dg:DataGrid.Columns>
+                <dg:DataGridTextColumn Header="Description"   Binding="{Binding Description}" Width="2*" />
+                <dg:DataGridTextColumn Header="Qty"           Binding="{Binding QtyText}"     Width="60" />
+                <dg:DataGridTextColumn Header="Tola"          Binding="{Binding TolaText}"    Width="80" />
+                <dg:DataGridTextColumn Header="Grams"         Binding="{Binding GramsText}"   Width="90" />
+                <dg:DataGridTextColumn Header="Purity"        Binding="{Binding Purity}"      Width="80" />
+                <dg:DataGridTextColumn Header="Est. Value"    Binding="{Binding ValueText}"   Width="130" />
+                <dg:DataGridTextColumn Header="Notes"         Binding="{Binding Notes}"       Width="*" />
+            </dg:DataGrid.Columns>
+        </dg:DataGrid>
+
+        <TextBlock x:Name="TotalsBanner" Grid.Row="5"
+                   Style="{StaticResource BodyStrongTextBlockStyle}" />
+    </Grid>
+</Page>

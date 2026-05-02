@@ -32,6 +32,9 @@
             <NavigationViewItem Content="Insurance" Tag="insurance">
                 <NavigationViewItem.Icon><FontIcon Glyph="&#xE83D;" /></NavigationViewItem.Icon>
             </NavigationViewItem>
+            <NavigationViewItem Content="Gold Ornaments" Tag="gold">
+                <NavigationViewItem.Icon><FontIcon Glyph="&#xEC4F;" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
         </NavigationView.MenuItems>
         <NavigationView.FooterMenuItems>
             <NavigationViewItem Content="Lock" Tag="lock">

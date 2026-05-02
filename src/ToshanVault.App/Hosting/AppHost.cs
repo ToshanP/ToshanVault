@@ -60,6 +60,7 @@ public static class AppHost
 
         sc.AddSingleton<IdleLockService>();
         sc.AddSingleton<NavigationService>();
+        sc.AddSingleton<GoldPriceService>();
 
         _services = sc.BuildServiceProvider(validateScopes: true);
     }

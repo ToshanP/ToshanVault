@@ -47,8 +47,11 @@
                      GridLinesVisibility="Horizontal"
                      HeadersVisibility="Column"
                      SelectionChanged="Grid_SelectionChanged"
+                     LoadingRow="Grid_LoadingRow"
                      DoubleTapped="Grid_DoubleTapped">
             <dg:DataGrid.Columns>
+                <dg:DataGridCheckBoxColumn Header="Tried" Binding="{Binding IsTried}"  Width="60" />
+                <dg:DataGridTextColumn Header="Category" Binding="{Binding Category}"  Width="90" />
                 <dg:DataGridTextColumn Header="Title"   Binding="{Binding Title}"      Width="2*" />
                 <dg:DataGridTextColumn Header="Channel" Binding="{Binding Author}"     Width="*" />
                 <dg:DataGridTextColumn Header="URL"     Binding="{Binding YoutubeUrl}" Width="3*" />

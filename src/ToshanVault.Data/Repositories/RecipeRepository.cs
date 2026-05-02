@@ -18,12 +18,15 @@ public sealed class RecipeRepository
     {
         ArgumentNullException.ThrowIfNull(r);
         if (r.AddedAt == default) r.AddedAt = DateTimeOffset.UtcNow;
+        if (string.IsNullOrWhiteSpace(r.Category)) r.Category = RecipeCategorizer.Classify(r.Title);
         await using var conn = _factory.Open();
         var id = await conn.ExecuteScalarAsync<long>(new CommandDefinition(
             @"INSERT INTO recipe(title, author, cuisine, rating, youtube_url,
-                                 thumbnail_path, notes_md, is_favourite, added_at)
+                                 thumbnail_path, notes_md, is_favourite, is_tried,
+                                 category, added_at)
               VALUES (@Title, @Author, @Cuisine, @Rating, @YoutubeUrl,
-                      @ThumbnailPath, @NotesMd, @IsFavourite, @AddedAt);
+                      @ThumbnailPath, @NotesMd, @IsFavourite, @IsTried,
+                      @Category, @AddedAt);
               SELECT last_insert_rowid();",
             r, cancellationToken: ct)).ConfigureAwait(false);
         r.Id = id;
@@ -33,12 +36,14 @@ public sealed class RecipeRepository
     public async Task UpdateAsync(Recipe r, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(r);
+        if (string.IsNullOrWhiteSpace(r.Category)) r.Category = RecipeCategorizer.Classify(r.Title);
         await using var conn = _factory.Open();
         var rows = await conn.ExecuteAsync(new CommandDefinition(
             @"UPDATE recipe SET title=@Title, author=@Author, cuisine=@Cuisine,
                                 rating=@Rating, youtube_url=@YoutubeUrl,
                                 thumbnail_path=@ThumbnailPath, notes_md=@NotesMd,
-                                is_favourite=@IsFavourite
+                                is_favourite=@IsFavourite, is_tried=@IsTried,
+                                category=@Category
               WHERE id=@Id;",
             r, cancellationToken: ct)).ConfigureAwait(false);
         if (rows == 0) throw new InvalidOperationException($"Recipe {r.Id} not found.");
@@ -56,7 +61,8 @@ public sealed class RecipeRepository
         await using var conn = _factory.Open();
         return await conn.QuerySingleOrDefaultAsync<Recipe>(new CommandDefinition(
             @"SELECT id, title, author, cuisine, rating, youtube_url,
-                     thumbnail_path, notes_md, is_favourite, added_at
+                     thumbnail_path, notes_md, is_favourite, is_tried,
+                     category, added_at
               FROM recipe WHERE id=@id;",
             new { id }, cancellationToken: ct)).ConfigureAwait(false);
     }
@@ -64,10 +70,14 @@ public sealed class RecipeRepository
     public async Task<IReadOnlyList<Recipe>> GetAllAsync(CancellationToken ct = default)
     {
         await using var conn = _factory.Open();
+        // Sort: untried first (so they're visible at top), then category
+        // (Chicken / Egg / Other), then favourite within category, then title.
         var rows = await conn.QueryAsync<Recipe>(new CommandDefinition(
             @"SELECT id, title, author, cuisine, rating, youtube_url,
-                     thumbnail_path, notes_md, is_favourite, added_at
-              FROM recipe ORDER BY is_favourite DESC, title;",
+                     thumbnail_path, notes_md, is_favourite, is_tried,
+                     category, added_at
+              FROM recipe
+              ORDER BY is_tried ASC, category, is_favourite DESC, title;",
             cancellationToken: ct)).ConfigureAwait(false);
         return rows.AsList();
     }

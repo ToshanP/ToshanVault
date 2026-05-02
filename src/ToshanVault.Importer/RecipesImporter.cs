@@ -77,6 +77,7 @@ public sealed class RecipesImporter
                     Title       = row.Title,
                     Author      = row.Author,
                     YoutubeUrl  = row.Url,
+                    Category    = RecipeCategorizer.Classify(row.Title),
                     AddedAt     = DateTimeOffset.UtcNow,
                 }, ct).ConfigureAwait(false);
                 existing.Add(key);
