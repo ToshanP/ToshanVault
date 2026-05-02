@@ -48,14 +48,15 @@
                      HeadersVisibility="Column"
                      SelectionChanged="Grid_SelectionChanged"
                      LoadingRow="Grid_LoadingRow"
+                     Sorting="Grid_Sorting"
                      DoubleTapped="Grid_DoubleTapped">
             <dg:DataGrid.Columns>
-                <dg:DataGridCheckBoxColumn Header="Tried" Binding="{Binding IsTried}"  Width="60" />
-                <dg:DataGridTextColumn Header="Category" Binding="{Binding Category}"  Width="90" />
-                <dg:DataGridTextColumn Header="Title"   Binding="{Binding Title}"      Width="2*" />
-                <dg:DataGridTextColumn Header="Channel" Binding="{Binding Author}"     Width="*" />
-                <dg:DataGridTextColumn Header="URL"     Binding="{Binding YoutubeUrl}" Width="3*" />
-                <dg:DataGridCheckBoxColumn Header="★"   Binding="{Binding IsFavourite}" Width="60" />
+                <dg:DataGridCheckBoxColumn Header="Tried"   Tag="IsTried"     Binding="{Binding IsTried}"  Width="60" />
+                <dg:DataGridTextColumn     Header="Category" Tag="Category"   Binding="{Binding Category}"  Width="90" />
+                <dg:DataGridTextColumn     Header="Title"    Tag="Title"      Binding="{Binding Title}"     Width="2*" />
+                <dg:DataGridTextColumn     Header="Channel"  Tag="Author"     Binding="{Binding Author}"    Width="*" />
+                <dg:DataGridTextColumn     Header="URL"      Tag="YoutubeUrl" Binding="{Binding YoutubeUrl}" Width="3*" />
+                <dg:DataGridCheckBoxColumn Header="★"        Tag="IsFavourite" Binding="{Binding IsFavourite}" Width="60" />
             </dg:DataGrid.Columns>
         </dg:DataGrid>
     </Grid>

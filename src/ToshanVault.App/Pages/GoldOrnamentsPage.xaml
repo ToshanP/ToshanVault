@@ -54,15 +54,16 @@
                      GridLinesVisibility="Horizontal"
                      HeadersVisibility="Column"
                      SelectionChanged="Grid_SelectionChanged"
+                     Sorting="Grid_Sorting"
                      DoubleTapped="Grid_DoubleTapped">
             <dg:DataGrid.Columns>
-                <dg:DataGridTextColumn Header="Description"   Binding="{Binding Description}" Width="2*" />
-                <dg:DataGridTextColumn Header="Qty"           Binding="{Binding QtyText}"     Width="60" />
-                <dg:DataGridTextColumn Header="Tola"          Binding="{Binding TolaText}"    Width="80" />
-                <dg:DataGridTextColumn Header="Grams"         Binding="{Binding GramsText}"   Width="90" />
-                <dg:DataGridTextColumn Header="Purity"        Binding="{Binding Purity}"      Width="80" />
-                <dg:DataGridTextColumn Header="Est. Value"    Binding="{Binding ValueText}"   Width="130" />
-                <dg:DataGridTextColumn Header="Notes"         Binding="{Binding Notes}"       Width="*" />
+                <dg:DataGridTextColumn Header="Description" Tag="Description" Binding="{Binding Description}" Width="2*" />
+                <dg:DataGridTextColumn Header="Qty"         Tag="Qty"         Binding="{Binding QtyText}"     Width="60" />
+                <dg:DataGridTextColumn Header="Tola"        Tag="Tola"        Binding="{Binding TolaText}"    Width="80" />
+                <dg:DataGridTextColumn Header="Grams"       Tag="Grams"       Binding="{Binding GramsText}"   Width="90" />
+                <dg:DataGridTextColumn Header="Purity"      Tag="Purity"      Binding="{Binding Purity}"      Width="80" />
+                <dg:DataGridTextColumn Header="Est. Value"  Tag="Value"       Binding="{Binding ValueText}"   Width="130" />
+                <dg:DataGridTextColumn Header="Notes"       Tag="Notes"       Binding="{Binding Notes}"       Width="*" />
             </dg:DataGrid.Columns>
         </dg:DataGrid>
 

@@ -31,6 +31,8 @@ public sealed partial class GoldOrnamentsPage : Page
     private string _filter = string.Empty;
     private bool _busy;
     private GoldPriceCache? _currentPrice;
+    private string? _sortKey;
+    private CommunityToolkit.WinUI.UI.Controls.DataGridSortDirection? _sortDir;
 
     public GoldOrnamentsPage()
     {
@@ -64,6 +66,7 @@ public sealed partial class GoldOrnamentsPage : Page
         var f = _filter;
         var ppg = _currentPrice?.PricePerGram24k ?? 0;
         double totalGrams = 0, totalAud = 0;
+        var rows = new List<GoldRowVm>();
         foreach (var g in _all)
         {
             if (!string.IsNullOrEmpty(f)
@@ -76,11 +79,53 @@ public sealed partial class GoldOrnamentsPage : Page
             var value = GoldValueCalculator.EstimateValue(g.GramsCalc, g.Purity, ppg);
             totalGrams += g.GramsCalc;
             totalAud += value;
-            _items.Add(new GoldRowVm(g, value));
+            rows.Add(new GoldRowVm(g, value));
         }
+        foreach (var vm in ApplySort(rows)) _items.Add(vm);
         TotalsBanner.Text = ppg > 0
             ? $"{_items.Count} items · {totalGrams:0.0} g total · est. AUD {totalAud:N0}"
             : $"{_items.Count} items · {totalGrams:0.0} g total · price unavailable";
+    }
+
+    private IEnumerable<GoldRowVm> ApplySort(IEnumerable<GoldRowVm> rows)
+    {
+        if (_sortKey is null || _sortDir is null) return rows;
+        var asc = _sortDir == CommunityToolkit.WinUI.UI.Controls.DataGridSortDirection.Ascending;
+        // Sort on the underlying GoldItem so numeric columns sort numerically
+        // (the VM exposes formatted strings for Qty/Tola/Grams/Value).
+        Func<GoldRowVm, IComparable?> key = _sortKey switch
+        {
+            "Description" => vm => vm.Source.ItemName ?? string.Empty,
+            "Qty"         => vm => vm.Source.Qty,
+            "Tola"        => vm => vm.Source.Tola,
+            "Grams"       => vm => vm.Source.GramsCalc,
+            "Purity"      => vm => vm.Source.Purity ?? string.Empty,
+            "Value"       => vm => GoldValueCalculator.EstimateValue(
+                                       vm.Source.GramsCalc, vm.Source.Purity,
+                                       _currentPrice?.PricePerGram24k ?? 0),
+            "Notes"       => vm => vm.Source.Notes ?? string.Empty,
+            _             => _ => 0,
+        };
+        return asc ? rows.OrderBy(key) : rows.OrderByDescending(key);
+    }
+
+    private void Grid_Sorting(object? sender, CommunityToolkit.WinUI.UI.Controls.DataGridColumnEventArgs e)
+    {
+        var key = e.Column.Tag as string;
+        if (string.IsNullOrEmpty(key)) return;
+
+        var newDir = (_sortKey == key
+                      && _sortDir == CommunityToolkit.WinUI.UI.Controls.DataGridSortDirection.Ascending)
+            ? CommunityToolkit.WinUI.UI.Controls.DataGridSortDirection.Descending
+            : CommunityToolkit.WinUI.UI.Controls.DataGridSortDirection.Ascending;
+
+        _sortKey = key;
+        _sortDir = newDir;
+
+        foreach (var col in Grid.Columns)
+            col.SortDirection = ReferenceEquals(col, e.Column) ? newDir : null;
+
+        ApplyFilter();
     }
 
     private void UpdatePriceBanner()

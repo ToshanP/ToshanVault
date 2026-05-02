@@ -28,6 +28,8 @@ public sealed partial class RecipesPage : Page
     private readonly List<Recipe> _all = new();
     private string _filter = string.Empty;
     private bool _busy;
+    private string? _sortKey;
+    private DataGridSortDirection? _sortDir;
 
     public RecipesPage()
     {
@@ -53,17 +55,52 @@ public sealed partial class RecipesPage : Page
     {
         _items.Clear();
         var f = _filter;
-        foreach (var r in _all)
+        IEnumerable<Recipe> filtered = _all.Where(r =>
+            string.IsNullOrEmpty(f)
+            || r.Title.Contains(f, StringComparison.OrdinalIgnoreCase)
+            || r.Category.Contains(f, StringComparison.OrdinalIgnoreCase)
+            || (r.Author     is { Length: > 0 } a && a.Contains(f, StringComparison.OrdinalIgnoreCase))
+            || (r.YoutubeUrl is { Length: > 0 } u && u.Contains(f, StringComparison.OrdinalIgnoreCase)));
+
+        filtered = ApplySort(filtered);
+
+        foreach (var r in filtered) _items.Add(r);
+    }
+
+    private IEnumerable<Recipe> ApplySort(IEnumerable<Recipe> rows)
+    {
+        if (_sortKey is null || _sortDir is null) return rows;
+        var asc = _sortDir == DataGridSortDirection.Ascending;
+        Func<Recipe, IComparable?> key = _sortKey switch
         {
-            if (string.IsNullOrEmpty(f)
-                || r.Title.Contains(f, StringComparison.OrdinalIgnoreCase)
-                || r.Category.Contains(f, StringComparison.OrdinalIgnoreCase)
-                || (r.Author     is { Length: > 0 } a && a.Contains(f, StringComparison.OrdinalIgnoreCase))
-                || (r.YoutubeUrl is { Length: > 0 } u && u.Contains(f, StringComparison.OrdinalIgnoreCase)))
-            {
-                _items.Add(r);
-            }
-        }
+            "IsTried"     => r => r.IsTried,
+            "Category"    => r => r.Category ?? string.Empty,
+            "Title"       => r => r.Title    ?? string.Empty,
+            "Author"      => r => r.Author   ?? string.Empty,
+            "YoutubeUrl"  => r => r.YoutubeUrl ?? string.Empty,
+            "IsFavourite" => r => r.IsFavourite,
+            _             => _ => 0,
+        };
+        return asc ? rows.OrderBy(key) : rows.OrderByDescending(key);
+    }
+
+    private void Grid_Sorting(object? sender, DataGridColumnEventArgs e)
+    {
+        var key = e.Column.Tag as string;
+        if (string.IsNullOrEmpty(key)) return;
+
+        // Toggle: same column flips direction; new column starts ascending.
+        var newDir = (_sortKey == key && _sortDir == DataGridSortDirection.Ascending)
+            ? DataGridSortDirection.Descending
+            : DataGridSortDirection.Ascending;
+
+        _sortKey = key;
+        _sortDir = newDir;
+
+        foreach (var col in Grid.Columns)
+            col.SortDirection = ReferenceEquals(col, e.Column) ? newDir : null;
+
+        ApplyFilter();
     }
 
     private void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
