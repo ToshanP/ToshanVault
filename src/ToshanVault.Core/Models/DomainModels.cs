@@ -52,6 +52,22 @@ public sealed class RetirementItem
     public string? Notes { get; set; }
 }
 
+public sealed class RetirementPlan
+{
+    public long Id { get; set; } = 1;
+    public string LoanName { get; set; } = "Redbank Plains";
+    public double Principal { get; set; } = 545000;
+    public double AnnualRatePct { get; set; } = 6.0;
+    public int TermYears { get; set; } = 30;
+    public RepaymentFrequency Frequency { get; set; } = RepaymentFrequency.Fortnightly;
+    public double ExtraPerPeriod { get; set; } = 0;
+    public DateOnly StartDate { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+    public double GoldPerPeriod { get; set; } = 500;
+    public double GoldGrowthPct { get; set; } = 5.0;
+    public DateOnly GoldStartDate { get; set; } = new DateOnly(2028, 5, 1);
+    public string? Notes { get; set; }
+}
+
 public sealed class GoldItem
 {
     public long Id { get; set; }

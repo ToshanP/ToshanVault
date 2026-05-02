@@ -45,6 +45,7 @@ public static class AppHost
         sc.AddSingleton<BudgetCategoryRepository>();
         sc.AddSingleton<BudgetItemRepository>();
         sc.AddSingleton<RetirementItemRepository>();
+        sc.AddSingleton<RetirementPlanRepository>();
         sc.AddSingleton<GoldItemRepository>();
         sc.AddSingleton<GoldPriceCacheRepository>();
         sc.AddSingleton<VaultEntryRepository>();

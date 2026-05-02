@@ -30,10 +30,12 @@ public static class DapperSetup
         SqlMapper.AddTypeHandler(new EnumStringHandler<BudgetFrequency>());
         SqlMapper.AddTypeHandler(new EnumStringHandler<RetirementKind>());
         SqlMapper.AddTypeHandler(new EnumStringHandler<BankAccountType>());
+        SqlMapper.AddTypeHandler(new EnumStringHandler<RepaymentFrequency>());
 
         foreach (var t in new[]
         {
             typeof(BudgetCategory), typeof(BudgetItem), typeof(RetirementItem),
+            typeof(RetirementPlan),
             typeof(GoldItem), typeof(GoldPriceCache),
             typeof(VaultEntry), typeof(VaultFieldRow),
             typeof(Recipe), typeof(BankAccount),

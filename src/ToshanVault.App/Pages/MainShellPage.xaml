@@ -29,8 +29,7 @@
             <NavigationViewItem Content="Vault" Tag="vault">
                 <NavigationViewItem.Icon><FontIcon Glyph="&#xE72E;" /></NavigationViewItem.Icon>
             </NavigationViewItem>
-            <NavigationViewItem Content="Retirement Planning" Tag="retirement"
-                                IsEnabled="False" ToolTipService.ToolTip="Coming soon">
+            <NavigationViewItem Content="Retirement Planning" Tag="retirement">
                 <NavigationViewItem.Icon><FontIcon Glyph="&#xE7BA;" /></NavigationViewItem.Icon>
             </NavigationViewItem>
             <NavigationViewItem Content="Gold Ornaments" Tag="gold">
