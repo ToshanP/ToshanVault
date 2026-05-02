@@ -20,20 +20,24 @@
             <NavigationViewItem Content="Budget" Tag="budget">
                 <NavigationViewItem.Icon><FontIcon Glyph="&#xE8C7;" /></NavigationViewItem.Icon>
             </NavigationViewItem>
-            <NavigationViewItem Content="Vault" Tag="vault">
-                <NavigationViewItem.Icon><FontIcon Glyph="&#xE72E;" /></NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem Content="Recipes" Tag="recipes">
-                <NavigationViewItem.Icon><FontIcon Glyph="&#xE7C3;" /></NavigationViewItem.Icon>
-            </NavigationViewItem>
             <NavigationViewItem Content="Bank Accounts" Tag="banks">
                 <NavigationViewItem.Icon><FontIcon Glyph="&#xE8C7;" /></NavigationViewItem.Icon>
             </NavigationViewItem>
             <NavigationViewItem Content="Insurance" Tag="insurance">
                 <NavigationViewItem.Icon><FontIcon Glyph="&#xE83D;" /></NavigationViewItem.Icon>
             </NavigationViewItem>
+            <NavigationViewItem Content="Vault" Tag="vault">
+                <NavigationViewItem.Icon><FontIcon Glyph="&#xE72E;" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="Retirement Planning" Tag="retirement"
+                                IsEnabled="False" ToolTipService.ToolTip="Coming soon">
+                <NavigationViewItem.Icon><FontIcon Glyph="&#xE7BA;" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
             <NavigationViewItem Content="Gold Ornaments" Tag="gold">
                 <NavigationViewItem.Icon><FontIcon Glyph="&#xEC4F;" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="Recipes" Tag="recipes">
+                <NavigationViewItem.Icon><FontIcon Glyph="&#xE7C3;" /></NavigationViewItem.Icon>
             </NavigationViewItem>
         </NavigationView.MenuItems>
         <NavigationView.FooterMenuItems>
