@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="ToshanVault_App.Pages.LoginPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+    <Grid>
+        <StackPanel
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            MaxWidth="420"
+            Spacing="16"
+            Padding="32">
+            <TextBlock
+                Style="{StaticResource TitleLargeTextBlockStyle}"
+                Text="🔐 Toshan Personal Vault"
+                HorizontalAlignment="Center" />
+            <TextBlock
+                x:Name="ModeLabel"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                HorizontalAlignment="Center"
+                Text="" />
+            <PasswordBox
+                x:Name="PasswordBox"
+                PlaceholderText="Master password"
+                PasswordRevealMode="Peek"
+                IsEnabled="False"
+                KeyDown="OnPasswordKeyDown" />
+            <PasswordBox
+                x:Name="ConfirmBox"
+                PlaceholderText="Confirm password (first run only)"
+                PasswordRevealMode="Peek"
+                Visibility="Collapsed"
+                IsEnabled="False"
+                KeyDown="OnPasswordKeyDown" />
+            <Button
+                x:Name="UnlockButton"
+                Content="Initialising…"
+                Style="{StaticResource AccentButtonStyle}"
+                HorizontalAlignment="Stretch"
+                IsEnabled="False"
+                Click="UnlockButton_Click" />
+            <InfoBar
+                x:Name="ErrorBar"
+                IsClosable="True"
+                IsOpen="False"
+                Severity="Error" />
+        </StackPanel>
+    </Grid>
+</Page>

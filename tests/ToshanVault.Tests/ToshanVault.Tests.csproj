@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <RootNamespace>ToshanVault.Tests</RootNamespace>
+    <AssemblyName>ToshanVault.Tests</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ToshanVault.Core\ToshanVault.Core.csproj" />
+    <ProjectReference Include="..\..\src\ToshanVault.Data\ToshanVault.Data.csproj" />
+    <ProjectReference Include="..\..\src\ToshanVault.Importer\ToshanVault.Importer.csproj" />
+    <!-- ToshanVault.App is intentionally NOT referenced here. The App's
+         module-init from Microsoft.WindowsAppSDK.Foundation calls
+         Bootstrap.Initialize, which throws COMException 0x80040154 in any
+         non-packaged process (such as `dotnet test`). App-layer logic
+         that needs unit testing must be exercised via smoke-launch of the
+         built exe, or moved into a shared library project. -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="MSTest.TestAdapter" Version="3.6.4" />
+    <PackageReference Include="MSTest.TestFramework" Version="3.6.4" />
+    <PackageReference Include="FluentAssertions" Version="6.12.2" />
+  </ItemGroup>
+</Project>

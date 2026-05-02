@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "ToshanVault.App (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "ToshanVault.App (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

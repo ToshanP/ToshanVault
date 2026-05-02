@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="ToshanVault_App.Pages.VaultPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Padding="24,16,24,16" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Vault" />
+                <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           Text="Website &amp; membership logins. All fields encrypted at rest." />
+            </StackPanel>
+            <Button Grid.Column="1" Content="+ Add entry" Click="AddEntry_Click"
+                    Style="{StaticResource AccentButtonStyle}" />
+        </Grid>
+
+        <AutoSuggestBox x:Name="SearchBox" Grid.Row="1"
+                        PlaceholderText="Search by name or owner…"
+                        QueryIcon="Find"
+                        TextChanged="SearchBox_TextChanged" />
+
+        <InfoBar x:Name="InfoBar" Grid.Row="2" IsClosable="True" IsOpen="False" />
+
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+            <GridView x:Name="EntryList" SelectionMode="None" IsItemClickEnabled="False">
+                <GridView.ItemContainerStyle>
+                    <Style TargetType="GridViewItem">
+                        <Setter Property="Margin" Value="0,0,8,8" />
+                    </Style>
+                </GridView.ItemContainerStyle>
+                <GridView.ItemTemplate>
+                    <DataTemplate>
+                        <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="6"
+                                Padding="12" Width="240" Height="140">
+                            <Grid RowSpacing="6">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0" Spacing="2">
+                                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}"
+                                               TextTrimming="CharacterEllipsis"
+                                               Text="{Binding Name}" />
+                                    <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               Text="{Binding Subtitle}" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4">
+                                    <Button Content="Edit" Click="Edit_Click" Tag="{Binding Id}" />
+                                    <Button Content="Login" Click="Credentials_Click" Tag="{Binding Id}" />
+                                    <Button Content="Del" Click="Delete_Click" Tag="{Binding Id}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </GridView.ItemTemplate>
+            </GridView>
+        </ScrollViewer>
+    </Grid>
+</Page>
