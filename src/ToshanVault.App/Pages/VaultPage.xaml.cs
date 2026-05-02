@@ -18,6 +18,7 @@ public sealed partial class VaultPage : Page
 {
     private readonly VaultEntryRepository _entryRepo = AppHost.GetService<VaultEntryRepository>();
     private readonly WebCredentialsService _credService = AppHost.GetService<WebCredentialsService>();
+    private readonly AttachmentService _attachments = AppHost.GetService<AttachmentService>();
     private readonly NavigationService _nav = AppHost.GetService<NavigationService>();
 
     private readonly ObservableCollection<WebEntryVm> _entries = new();
@@ -34,6 +35,7 @@ public sealed partial class VaultPage : Page
     protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
         try { await ReloadAsync(); }
+        catch (VaultLockedException) { _nav.NavigateToLogin(); }
         catch (Exception ex) { ShowError(ex.Message); }
     }
 
@@ -41,8 +43,38 @@ public sealed partial class VaultPage : Page
     {
         var rows = await _entryRepo.GetByKindAsync(WebCredentialsService.EntryKind);
         _allEntries.Clear();
+        // Only the two non-secret display fields — keep password + security
+        // answers out of memory until the user actually opens an entry.
+        var previewLabels = new[]
+        {
+            WebCredentialsService.NumberLabel,
+            WebCredentialsService.WebsiteLabel,
+        };
         foreach (var r in rows.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
-            _allEntries.Add(new WebEntryVm(r));
+        {
+            string? number = null, website = null;
+            try
+            {
+                var loaded = await _credService.LoadLabelsAsync(r.Id, previewLabels);
+                number  = loaded.GetValueOrDefault(WebCredentialsService.NumberLabel);
+                website = loaded.GetValueOrDefault(WebCredentialsService.WebsiteLabel);
+            }
+            catch (VaultLockedException)
+            {
+                // Vault was locked between page nav and reload — propagate so
+                // the navigation host can route back to login. There is no
+                // useful tile to show without the DEK.
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // One bad row (e.g. crypto tag mismatch on a tampered field)
+                // shouldn't blank the whole list. Surface via InfoBar so the
+                // user knows something is off, but keep going.
+                ShowError($"Could not preview entry #{r.Id}: {ex.Message}");
+            }
+            _allEntries.Add(new WebEntryVm(r, number, website));
+        }
         ApplyFilter();
     }
 
@@ -54,7 +86,9 @@ public sealed partial class VaultPage : Page
         {
             if (string.IsNullOrEmpty(f)
                 || vm.Name.Contains(f, StringComparison.OrdinalIgnoreCase)
-                || vm.Subtitle.Contains(f, StringComparison.OrdinalIgnoreCase))
+                || vm.Subtitle.Contains(f, StringComparison.OrdinalIgnoreCase)
+                || (vm.Number  is { Length: > 0 } n && n.Contains(f, StringComparison.OrdinalIgnoreCase))
+                || (vm.Website is { Length: > 0 } w && w.Contains(f, StringComparison.OrdinalIgnoreCase)))
             {
                 _entries.Add(vm);
             }
@@ -105,7 +139,8 @@ public sealed partial class VaultPage : Page
             var dlg = new VaultEntryDialog(this.XamlRoot, existing,
                 loaded.GetValueOrDefault(WebCredentialsService.NumberLabel),
                 loaded.GetValueOrDefault(WebCredentialsService.WebsiteLabel),
-                loaded.GetValueOrDefault(WebCredentialsService.AdditionalDetailsLabel));
+                loaded.GetValueOrDefault(WebCredentialsService.AdditionalDetailsLabel),
+                _attachments);
             if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
 
             await _entryRepo.UpdateAsync(dlg.Result!);
@@ -237,13 +272,27 @@ public sealed partial class VaultPage : Page
 
 public sealed class WebEntryVm
 {
-    public WebEntryVm(VaultEntry e)
+    public WebEntryVm(VaultEntry e, string? number = null, string? website = null)
     {
         Id = e.Id;
         Name = e.Name;
         Subtitle = string.IsNullOrWhiteSpace(e.Owner) ? "(no owner)" : e.Owner!;
+        Number = number;
+        Website = website;
+        // Visibility helpers — XAML can't easily collapse on null/empty without
+        // a converter, and we'd rather not pull in a converter for two fields.
+        HasNumber  = !string.IsNullOrWhiteSpace(number);
+        HasWebsite = !string.IsNullOrWhiteSpace(website);
+        NumberVisibility  = HasNumber  ? Visibility.Visible : Visibility.Collapsed;
+        WebsiteVisibility = HasWebsite ? Visibility.Visible : Visibility.Collapsed;
     }
     public long Id { get; }
     public string Name { get; }
     public string Subtitle { get; }
+    public string? Number { get; }
+    public string? Website { get; }
+    public bool HasNumber { get; }
+    public bool HasWebsite { get; }
+    public Visibility NumberVisibility { get; }
+    public Visibility WebsiteVisibility { get; }
 }

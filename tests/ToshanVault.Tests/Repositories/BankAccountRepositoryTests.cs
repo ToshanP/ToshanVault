@@ -19,6 +19,7 @@ public class BankAccountRepositoryTests
         HolderName = "T. Patel",
         InterestRatePct = 4.5,
         Notes = "primary",
+        Website = "https://www.anz.com",
     };
 
     [TestMethod]
@@ -42,6 +43,7 @@ public class BankAccountRepositoryTests
         got.IsClosed.Should().BeFalse();
         got.ClosedDate.Should().BeNull();
         got.VaultEntryId.Should().BeNull();
+        got.Website.Should().Be("https://www.anz.com");
     }
 
     [TestMethod]

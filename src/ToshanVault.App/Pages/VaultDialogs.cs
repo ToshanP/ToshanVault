@@ -34,7 +34,8 @@ internal sealed class VaultEntryDialog : ContentDialog
         VaultEntry? existing,
         string? initialNumber,
         string? initialWebsite,
-        string? initialAdditionalDetails)
+        string? initialAdditionalDetails,
+        AttachmentService? attachments = null)
     {
         XamlRoot = root;
         _existing = existing;
@@ -73,6 +74,15 @@ internal sealed class VaultEntryDialog : ContentDialog
         panel.Children.Add(_website);
         panel.Children.Add(_additional.Container);
         panel.Children.Add(_err);
+        // Attachments only on existing entries.
+        if (existing is not null && attachments is not null)
+        {
+            var attPanel = new AttachmentsPanel(attachments, root, MainWindow.Hwnd,
+                Attachment.KindVaultEntry, existing.Id);
+            attPanel.WireRowEvents();
+            panel.Children.Add(attPanel.Container);
+            Loaded += async (_, _) => { try { await attPanel.ReloadAsync(); } catch { /* swallow */ } };
+        }
 
         Content = new ScrollViewer
         {

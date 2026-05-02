@@ -23,6 +23,8 @@ public static class DapperSetup
 
         SqlMapper.AddTypeHandler(new DateTimeOffsetIsoHandler());
         SqlMapper.AddTypeHandler(new NullableDateTimeOffsetIsoHandler());
+        SqlMapper.AddTypeHandler(new DateOnlyIsoHandler());
+        SqlMapper.AddTypeHandler(new NullableDateOnlyIsoHandler());
 
         SqlMapper.AddTypeHandler(new EnumStringHandler<BudgetCategoryType>());
         SqlMapper.AddTypeHandler(new EnumStringHandler<BudgetFrequency>());
@@ -35,6 +37,7 @@ public static class DapperSetup
             typeof(GoldItem), typeof(GoldPriceCache),
             typeof(VaultEntry), typeof(VaultFieldRow),
             typeof(Recipe), typeof(BankAccount),
+            typeof(Insurance),
         })
         {
             SqlMapper.SetTypeMap(t, new CustomPropertyTypeMap(t, ResolveSnakeCase));
@@ -88,6 +91,32 @@ public static class DapperSetup
         {
             parameter.DbType = DbType.String;
             parameter.Value = value.HasValue ? value.Value.ToString("O", CultureInfo.InvariantCulture) : DBNull.Value;
+        }
+    }
+
+    // SQLite stores DateOnly as "yyyy-MM-dd" TEXT — Dapper has no built-in
+    // converter from string to DateOnly, so we wire one explicitly. Used by
+    // the insurance table's renewal_date column.
+    private sealed class DateOnlyIsoHandler : SqlMapper.TypeHandler<DateOnly>
+    {
+        public override DateOnly Parse(object value)
+            => DateOnly.ParseExact((string)value, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+        public override void SetValue(IDbDataParameter parameter, DateOnly value)
+        {
+            parameter.DbType = DbType.String;
+            parameter.Value = value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        }
+    }
+
+    private sealed class NullableDateOnlyIsoHandler : SqlMapper.TypeHandler<DateOnly?>
+    {
+        public override DateOnly? Parse(object value)
+            => value is null ? null
+             : DateOnly.ParseExact((string)value, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+        public override void SetValue(IDbDataParameter parameter, DateOnly? value)
+        {
+            parameter.DbType = DbType.String;
+            parameter.Value = value.HasValue ? value.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : DBNull.Value;
         }
     }
 }

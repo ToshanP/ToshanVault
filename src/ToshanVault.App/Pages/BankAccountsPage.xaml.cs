@@ -19,6 +19,7 @@ public sealed partial class BankAccountsPage : Page
     private readonly BankAccountRepository _bankRepo = AppHost.GetService<BankAccountRepository>();
     private readonly BankAccountCredentialRepository _credRepo = AppHost.GetService<BankAccountCredentialRepository>();
     private readonly BankCredentialsService _credService = AppHost.GetService<BankCredentialsService>();
+    private readonly AttachmentService _attachments = AppHost.GetService<AttachmentService>();
     private readonly NavigationService _nav = AppHost.GetService<NavigationService>();
 
     private readonly ObservableCollection<BankAccountVm> _open = new();
@@ -108,7 +109,7 @@ public sealed partial class BankAccountsPage : Page
             var existing = await _bankRepo.GetAsync(id);
             if (existing is null) { ShowError("Account not found."); await ReloadAsync(); return; }
 
-            var dlg = new BankAccountDialog(this.XamlRoot, existing);
+            var dlg = new BankAccountDialog(this.XamlRoot, existing, _attachments);
             if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
             var result = dlg.Result!;
 
@@ -183,6 +184,9 @@ public sealed partial class BankAccountsPage : Page
                 Username = loaded.GetValueOrDefault(BankCredentialsService.UsernameLabel, ""),
                 ClientId = loaded.GetValueOrDefault(BankCredentialsService.ClientIdLabel, ""),
                 Password = loaded.GetValueOrDefault(BankCredentialsService.PasswordLabel, ""),
+                CardPin  = loaded.GetValueOrDefault(BankCredentialsService.CardPinLabel, ""),
+                PhonePin = loaded.GetValueOrDefault(BankCredentialsService.PhonePinLabel, ""),
+                Notes    = loaded.GetValueOrDefault(BankCredentialsService.NotesLabel, ""),
             };
             for (var i = 0; i < BankCredentialsService.MaxQa; i++)
             {
@@ -196,6 +200,24 @@ public sealed partial class BankAccountsPage : Page
 
             if (dlg.DeleteRequested)
             {
+                // Confirm AFTER the credentials dialog has closed (WinUI only
+                // allows one open ContentDialog per XAML root, so the confirm
+                // can't be shown from inside the cred dialog's button handler).
+                var confirm = new ContentDialog
+                {
+                    XamlRoot = this.XamlRoot,
+                    Title = $"Delete {owner} credential?",
+                    Content = new TextBlock
+                    {
+                        Text = $"All encrypted username/password/Q&A for {owner} on {accountTitle} will be permanently removed. This cannot be undone.",
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    PrimaryButtonText = "Delete",
+                    CloseButtonText = "Cancel",
+                    DefaultButton = ContentDialogButton.Close,
+                };
+                if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;
+
                 // The credential row + cascade trigger will remove the linked
                 // vault_entry and all its vault_field rows in one statement.
                 var rowToDelete = (await _credRepo.GetByAccountAsync(accountId))
@@ -211,11 +233,17 @@ public sealed partial class BankAccountsPage : Page
 
             if (result != ContentDialogResult.Primary) return;
 
-            var specs = new List<BankCredentialsService.FieldSpec>(3 + BankCredentialsService.MaxQa * 2)
+            var specs = new List<BankCredentialsService.FieldSpec>(6 + BankCredentialsService.MaxQa * 2)
             {
                 new(BankCredentialsService.UsernameLabel, creds.Username, false),
                 new(BankCredentialsService.ClientIdLabel, creds.ClientId, false),
                 new(BankCredentialsService.PasswordLabel, creds.Password, true),
+                new(BankCredentialsService.CardPinLabel,  creds.CardPin,  true),
+                new(BankCredentialsService.PhonePinLabel, creds.PhonePin, true),
+                // Notes is RTF — not flagged as IsSecret so it doesn't render
+                // behind a reveal-eye, but still encrypted at rest like every
+                // bank_login.* field via the vault_field column.
+                new(BankCredentialsService.NotesLabel,    creds.Notes,    false),
             };
             for (var i = 0; i < BankCredentialsService.MaxQa; i++)
             {
@@ -236,6 +264,7 @@ public sealed partial class BankAccountsPage : Page
             if (creds is not null)
             {
                 creds.Username = creds.ClientId = creds.Password = string.Empty;
+                creds.CardPin = creds.PhonePin = creds.Notes = string.Empty;
                 for (var i = 0; i < creds.Qa.Length; i++) creds.Qa[i] = new QaPair("", "");
             }
         }

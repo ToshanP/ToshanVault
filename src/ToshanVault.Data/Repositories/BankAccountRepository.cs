@@ -35,12 +35,12 @@ public sealed class BankAccountRepository
         var id = await conn.ExecuteScalarAsync<long>(new CommandDefinition(
             @"INSERT INTO bank_account
                 (bank, account_name, bsb, ifsc_code, account_number, account_type,
-                 holder_name, interest_rate_pct, notes,
+                 holder_name, interest_rate_pct, notes, website,
                  is_closed, closed_date, close_reason,
                  vault_entry_id, created_at, updated_at)
               VALUES
                 (@Bank, @AccountName, @Bsb, @IfscCode, @AccountNumber, @AccountType,
-                 @HolderName, @InterestRatePct, @Notes,
+                 @HolderName, @InterestRatePct, @Notes, @Website,
                  @IsClosed, @ClosedDate, @CloseReason,
                  @VaultEntryId, @CreatedAt, @UpdatedAt);
               SELECT last_insert_rowid();",
@@ -55,6 +55,7 @@ public sealed class BankAccountRepository
                 a.HolderName,
                 a.InterestRatePct,
                 a.Notes,
+                a.Website,
                 a.IsClosed,
                 a.ClosedDate,
                 a.CloseReason,
@@ -79,13 +80,13 @@ public sealed class BankAccountRepository
                 bank=@Bank, account_name=@AccountName, bsb=@Bsb, ifsc_code=@IfscCode,
                 account_number=@AccountNumber, account_type=@AccountType,
                 holder_name=@HolderName, interest_rate_pct=@InterestRatePct,
-                notes=@Notes, vault_entry_id=@VaultEntryId, updated_at=@UpdatedAt
+                notes=@Notes, website=@Website, vault_entry_id=@VaultEntryId, updated_at=@UpdatedAt
               WHERE id=@Id;",
             new
             {
                 a.Id, a.Bank, a.AccountName, a.Bsb, a.IfscCode, a.AccountNumber,
                 AccountType = a.AccountType.ToString(),
-                a.HolderName, a.InterestRatePct, a.Notes,
+                a.HolderName, a.InterestRatePct, a.Notes, a.Website,
                 a.VaultEntryId, a.UpdatedAt,
             },
             cancellationToken: ct)).ConfigureAwait(false);
@@ -171,7 +172,7 @@ public sealed class BankAccountRepository
 
     private const string SelectColumns =
         @"SELECT id, bank, account_name, bsb, ifsc_code, account_number, account_type,
-                 holder_name, interest_rate_pct, notes,
+                 holder_name, interest_rate_pct, notes, website,
                  is_closed, closed_date, close_reason,
                  vault_entry_id, created_at, updated_at
             FROM bank_account";

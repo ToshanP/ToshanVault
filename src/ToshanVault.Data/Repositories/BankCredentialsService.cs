@@ -22,6 +22,9 @@ public sealed class BankCredentialsService
     public const string UsernameLabel = LabelPrefix + "username";
     public const string ClientIdLabel = LabelPrefix + "client_id";
     public const string PasswordLabel = LabelPrefix + "password";
+    public const string CardPinLabel = LabelPrefix + "card_pin";
+    public const string PhonePinLabel = LabelPrefix + "phone_pin";
+    public const string NotesLabel = LabelPrefix + "notes";
     public const string QuestionLabelPrefix = LabelPrefix + "q";
     public const string AnswerLabelPrefix = LabelPrefix + "a";
     public const int MaxQa = 10;
@@ -96,9 +99,21 @@ public sealed class BankCredentialsService
                     sealedFields.Add((f.Label, default, false, f.IsSecret, null));
                     continue;
                 }
-                var pt = Encoding.UTF8.GetBytes(f.Value);
-                var blob = _vault.EncryptField(pt);
-                sealedFields.Add((f.Label, blob, true, f.IsSecret, pt));
+                // Per-iteration try/finally so plaintext is zeroed even if
+                // EncryptField throws (e.g. VaultLockedException) before we
+                // can hand ownership to sealedFields for the outer cleanup.
+                byte[]? pt = null;
+                try
+                {
+                    pt = Encoding.UTF8.GetBytes(f.Value);
+                    var blob = _vault.EncryptField(pt);
+                    sealedFields.Add((f.Label, blob, true, f.IsSecret, pt));
+                    pt = null; // ownership transferred to sealedFields
+                }
+                finally
+                {
+                    if (pt is not null) CryptographicOperations.ZeroMemory(pt);
+                }
             }
 
             await using var conn = _factory.Open();

@@ -2,14 +2,22 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using ToshanVault_App.Hosting;
 using ToshanVault_App.Services;
+using WinRT.Interop;
 
 namespace ToshanVault_App;
 
 public sealed partial class MainWindow : Window
 {
+    /// <summary>HWND of the single main window. Cached at construction so file
+    /// pickers and other WinRT APIs that need an owner handle can grab it
+    /// without walking back up to the App. There is only one MainWindow per
+    /// process so the static is safe.</summary>
+    public static IntPtr Hwnd { get; private set; }
+
     public MainWindow()
     {
         InitializeComponent();
+        Hwnd = WindowNative.GetWindowHandle(this);
 
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);

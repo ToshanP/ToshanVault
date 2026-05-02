@@ -10,12 +10,13 @@
         <StackPanel
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
-            MaxWidth="420"
+            MaxWidth="640"
             Spacing="16"
             Padding="32">
             <TextBlock
                 Style="{StaticResource TitleLargeTextBlockStyle}"
-                Text="🔐 Toshan Personal Vault"
+                Text="🔐 Toshan &amp; Devu Vault"
+                TextWrapping="NoWrap"
                 HorizontalAlignment="Center" />
             <TextBlock
                 x:Name="ModeLabel"

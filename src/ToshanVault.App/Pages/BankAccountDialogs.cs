@@ -16,7 +16,7 @@ internal sealed class BankAccountDialog : ContentDialog
 {
     public BankAccount? Result { get; private set; }
     private readonly BankAccount? _existing;
-    private readonly TextBox _bank, _name, _bsb, _ifsc, _acct, _holder, _interest;
+    private readonly TextBox _bank, _name, _bsb, _ifsc, _acct, _holder, _interest, _website;
     private readonly RichNotesField _notes;
     private readonly ComboBox _type;
     private readonly ToggleSwitch _statusToggle;
@@ -30,7 +30,7 @@ internal sealed class BankAccountDialog : ContentDialog
     // user cancels the nested confirm dialog).
     private bool _suppressToggle;
 
-    public BankAccountDialog(XamlRoot root, BankAccount? existing)
+    public BankAccountDialog(XamlRoot root, BankAccount? existing, AttachmentService? attachments = null)
     {
         XamlRoot = root;
         _existing = existing;
@@ -43,8 +43,8 @@ internal sealed class BankAccountDialog : ContentDialog
         // an internal scrollbar on most monitors. ContentDialog defaults cap
         // at ~756×620 — bumped via per-dialog resource overrides.
         this.Resources["ContentDialogMaxHeight"] = 1080d;
-        this.Resources["ContentDialogMaxWidth"]  = 720d;
-        this.Resources["ContentDialogMinWidth"]  = 560d;
+        this.Resources["ContentDialogMaxWidth"]  = 980d;
+        this.Resources["ContentDialogMinWidth"]  = 820d;
 
         _bank     = TB("Bank (e.g. ANZ, CBA, HDFC)",      existing?.Bank);
         _name     = TB("Account name (e.g. Joint Everyday)", existing?.AccountName);
@@ -53,6 +53,7 @@ internal sealed class BankAccountDialog : ContentDialog
         _acct     = TB("Account number (optional)", existing?.AccountNumber);
         _holder   = TB("Holder name (optional)",    existing?.HolderName);
         _interest = TB("Interest rate % (optional, used for mortgage in retirement plan)", existing?.InterestRatePct?.ToString());
+        _website  = TB("Website (optional, e.g. https://www.anz.com)", existing?.Website);
         _notes    = new RichNotesField("Notes (optional, formatted)", existing?.Notes, minHeight: 200);
 
         _type = new ComboBox { Header = "Account type", HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -82,7 +83,7 @@ internal sealed class BankAccountDialog : ContentDialog
 
         _err = new TextBlock { Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"] };
 
-        var panel = new StackPanel { Spacing = 8, Width = 560 };
+        var panel = new StackPanel { Spacing = 8, Width = 820 };
         panel.Children.Add(_bank);
         panel.Children.Add(_name);
         panel.Children.Add(_type);
@@ -91,6 +92,7 @@ internal sealed class BankAccountDialog : ContentDialog
         panel.Children.Add(_acct);
         panel.Children.Add(_holder);
         panel.Children.Add(_interest);
+        panel.Children.Add(_website);
         panel.Children.Add(_notes.Container);
         if (existing is not null) // status toggle only meaningful for existing rows
         {
@@ -98,6 +100,19 @@ internal sealed class BankAccountDialog : ContentDialog
             panel.Children.Add(_statusHint);
         }
         panel.Children.Add(_err);
+        // Attachments only on existing rows — new accounts must save first
+        // then re-open. Avoids buffering plaintext in memory pre-insert.
+        AttachmentsPanel? attPanel = null;
+        if (existing is not null && attachments is not null)
+        {
+            attPanel = new AttachmentsPanel(attachments, root, MainWindow.Hwnd,
+                Attachment.KindBankAccount, existing.Id);
+            attPanel.WireRowEvents();
+            panel.Children.Add(attPanel.Container);
+            // Reload after the dialog is in the visual tree so XamlRoot is valid
+            // for any error popups raised from inside ReloadAsync.
+            Loaded += async (_, _) => { try { await attPanel.ReloadAsync(); } catch { /* swallow — surfaced via dialog */ } };
+        }
         Content = new ScrollViewer
         {
             Content = panel,
@@ -230,6 +245,7 @@ internal sealed class BankAccountDialog : ContentDialog
         Result.AccountType = type;
         Result.HolderName = N(_holder.Text);
         Result.InterestRatePct = interest;
+        Result.Website = N(_website.Text);
         Result.Notes = _notes.GetValue();
 
         // Apply toggle-driven status transition. The page reads these and calls
@@ -261,6 +277,12 @@ internal sealed class CredentialsModel
     public string Username { get; set; } = string.Empty;
     public string ClientId { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
+    public string CardPin { get; set; } = string.Empty;
+    public string PhonePin { get; set; } = string.Empty;
+    /// <summary>RTF (or legacy plain text). Encrypted at rest like the rest of
+    /// the credential fields; the RTF marker is detected by RichNotesField on
+    /// load. Empty/whitespace stays as empty string and is not persisted.</summary>
+    public string Notes { get; set; } = string.Empty;
     public QaPair[] Qa { get; } = Enumerable.Range(0, BankCredentialsService.MaxQa).Select(_ => new QaPair("", "")).ToArray();
 }
 
@@ -270,7 +292,8 @@ internal sealed class CredentialsDialog : ContentDialog
     // to avoid collision with user-created vault fields.
     private readonly CredentialsModel _model;
     private readonly TextBox _username, _clientId;
-    private readonly PasswordBox _password;
+    private readonly PasswordBox _password, _cardPin, _phonePin;
+    private readonly RichNotesField _notes;
     private readonly TextBox[] _q = new TextBox[BankCredentialsService.MaxQa];
     private readonly PasswordBox[] _a = new PasswordBox[BankCredentialsService.MaxQa];
 
@@ -295,16 +318,20 @@ internal sealed class CredentialsDialog : ContentDialog
         }
 
         this.Resources["ContentDialogMaxHeight"] = 1080d;
-        this.Resources["ContentDialogMaxWidth"]  = 720d;
-        this.Resources["ContentDialogMinWidth"]  = 560d;
+        this.Resources["ContentDialogMaxWidth"]  = 980d;
+        this.Resources["ContentDialogMinWidth"]  = 820d;
 
         _username = new TextBox     { Header = "Username",   Text = model.Username, HorizontalAlignment = HorizontalAlignment.Stretch };
         _clientId = new TextBox     { Header = "Client ID / MAC Code",  Text = model.ClientId, HorizontalAlignment = HorizontalAlignment.Stretch };
 
-        var panel = new StackPanel { Spacing = 8, Width = 560 };
+        var panel = new StackPanel { Spacing = 8, Width = 820 };
         panel.Children.Add(_username);
         panel.Children.Add(_clientId);
         _password = SecretFieldHelpers.AddSecret(panel, "Password (encrypted at rest)", model.Password);
+        _cardPin  = SecretFieldHelpers.AddSecret(panel, "Card PIN (encrypted at rest)", model.CardPin);
+        _phonePin = SecretFieldHelpers.AddSecret(panel, "Phone-banking PIN (encrypted at rest)", model.PhonePin);
+        _notes    = new RichNotesField("Notes (encrypted at rest, formatted)", model.Notes, minHeight: 160);
+        panel.Children.Add(_notes.Container);
         panel.Children.Add(new TextBlock { Text = "Security questions (up to 10) — answers encrypted at rest.",
                                            Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] });
         for (var i = 0; i < BankCredentialsService.MaxQa; i++)
@@ -322,35 +349,20 @@ internal sealed class CredentialsDialog : ContentDialog
             _model.Username = _username.Text;
             _model.ClientId = _clientId.Text;
             _model.Password = _password.Password;
+            _model.CardPin  = _cardPin.Password;
+            _model.PhonePin = _phonePin.Password;
+            _model.Notes    = _notes.GetValue() ?? string.Empty;
             for (var i = 0; i < BankCredentialsService.MaxQa; i++)
                 _model.Qa[i] = new QaPair(_q[i].Text, _a[i].Password);
         };
 
-        SecondaryButtonClick += async (_, args) =>
+        SecondaryButtonClick += (_, _) =>
         {
-            // Confirm before destroying. Use args.GetDeferral so the secondary
-            // click doesn't dismiss the parent dialog before the user answers.
-            var deferral = args.GetDeferral();
-            try
-            {
-                var confirm = new ContentDialog
-                {
-                    XamlRoot = XamlRoot,
-                    Title = $"Delete {owner} credential?",
-                    Content = new TextBlock
-                    {
-                        Text = $"All encrypted username/password/Q&A for {owner} on {subtitle} will be permanently removed. This cannot be undone.",
-                        TextWrapping = TextWrapping.Wrap,
-                    },
-                    PrimaryButtonText = "Delete",
-                    CloseButtonText = "Cancel",
-                    DefaultButton = ContentDialogButton.Close,
-                };
-                var res = await confirm.ShowAsync();
-                if (res == ContentDialogResult.Primary) DeleteRequested = true;
-                else args.Cancel = true; // keep credentials dialog open
-            }
-            finally { deferral.Complete(); }
+            // Just flag the intent and let this dialog close. The page shows
+            // the confirmation dialog AFTER ShowAsync returns — opening a
+            // second ContentDialog from inside this handler is unreliable
+            // (WinUI permits only one open ContentDialog per XAML root).
+            DeleteRequested = true;
         };
     }
 

@@ -54,6 +54,9 @@ public static class AppHost
         sc.AddSingleton<BankAccountCredentialRepository>();
         sc.AddSingleton<BankCredentialsService>();
         sc.AddSingleton<WebCredentialsService>();
+        sc.AddSingleton<AttachmentService>();
+        sc.AddSingleton<InsuranceRepository>();
+        sc.AddSingleton<InsuranceCredentialsService>();
 
         sc.AddSingleton<IdleLockService>();
         sc.AddSingleton<NavigationService>();

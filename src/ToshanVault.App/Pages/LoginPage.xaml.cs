@@ -42,8 +42,12 @@ public sealed partial class LoginPage : Page
             ConfirmBox.IsEnabled = _isFirstRun;
             UnlockButton.IsEnabled = true;
             // Defer focus to the next dispatcher pass — calling Focus() before
-            // the page's first layout completes is a known WinUI no-op.
-            DispatcherQueue.TryEnqueue(() => PasswordBox.Focus(FocusState.Programmatic));
+            // the page's first layout completes is a known WinUI no-op. Use
+            // Low priority so we run AFTER layout + window activation, and
+            // FocusState.Keyboard so the caret actually lands and input
+            // dispatch is wired (Programmatic alone leaves the field "focused"
+            // visually but typing is sometimes swallowed on cold start).
+            TryFocusPassword();
         }
         catch (Exception ex)
         {
@@ -51,6 +55,28 @@ public sealed partial class LoginPage : Page
             // cannot click into a half-initialised database.
             ShowError($"Failed to initialise vault: {ex.Message}");
         }
+    }
+
+    /// <summary>Best-effort focus on the master-password field. Tries
+    /// immediately, again at Low priority (post-layout), and once more on the
+    /// PasswordBox.Loaded event — at least one of these wins on every cold/
+    /// warm-start path observed in WinUI 3.</summary>
+    private void TryFocusPassword()
+    {
+        if (!PasswordBox.IsEnabled) return;
+        if (PasswordBox.Focus(FocusState.Keyboard)) return;
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+            () => PasswordBox.Focus(FocusState.Keyboard));
+        // Loaded only fires once per page lifetime; the +=/-= pattern keeps
+        // re-entries (back-nav from Home) from stacking handlers.
+        PasswordBox.Loaded -= PasswordBox_Loaded;
+        PasswordBox.Loaded += PasswordBox_Loaded;
+    }
+
+    private void PasswordBox_Loaded(object sender, RoutedEventArgs e)
+    {
+        PasswordBox.Loaded -= PasswordBox_Loaded;
+        PasswordBox.Focus(FocusState.Keyboard);
     }
 
     private async void UnlockButton_Click(object sender, RoutedEventArgs e)

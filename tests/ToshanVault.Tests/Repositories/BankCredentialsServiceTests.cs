@@ -123,12 +123,13 @@ public class BankCredentialsServiceTests
 
         // Simulate vault entry being deleted from another tab while dialog is open.
         // The AFTER DELETE trigger on bank_account_credential cascades vault_entry,
-        // but here we go the other way to exercise the recreate path.
+        // but here we go the other way to exercise the recreate path. We must
+        // disable FK enforcement on this connection too — otherwise the
+        // ON DELETE CASCADE on bank_account_credential.vault_entry_id would
+        // remove the credential row before we can test orphan-recovery.
         await using (var c = f.Open())
         {
-            // Drop cascade trigger temporarily so deleting the entry doesn't take
-            // the credential row with it (we want to test the orphan-recovery path).
-            await c.ExecuteAsync("DROP TRIGGER IF EXISTS trg_bank_credential_after_delete;");
+            await c.ExecuteAsync("PRAGMA foreign_keys=OFF;");
             await c.ExecuteAsync("DELETE FROM vault_entry WHERE id=@id;", new { id = first });
         }
 
@@ -147,6 +148,37 @@ public class BankCredentialsServiceTests
 
         var loaded = await svc.LoadAsync(second);
         loaded[BankCredentialsService.PasswordLabel].Should().Be("newpwd");
+    }
+
+    [TestMethod]
+    public async Task SaveAsync_RoundTripsCardPin_PhonePin_AndNotesFields()
+    {
+        var (f, vault, svc, bankRepo) = await SetupAsync();
+        using var _ = f; using var __ = vault;
+
+        var id = await bankRepo.InsertAsync(Sample());
+        var rtfNotes = @"{\rtf1\ansi {\b Bold} note}";
+        var entryId = await svc.SaveAsync(id, Owner, "ANZ · Joint", new[]
+        {
+            new BankCredentialsService.FieldSpec(BankCredentialsService.UsernameLabel, "alice", false),
+            new BankCredentialsService.FieldSpec(BankCredentialsService.CardPinLabel,  "1234",  true),
+            new BankCredentialsService.FieldSpec(BankCredentialsService.PhonePinLabel, "9876",  true),
+            new BankCredentialsService.FieldSpec(BankCredentialsService.NotesLabel,    rtfNotes, false),
+        });
+
+        var loaded = await svc.LoadAsync(entryId);
+        loaded[BankCredentialsService.CardPinLabel].Should().Be("1234");
+        loaded[BankCredentialsService.PhonePinLabel].Should().Be("9876");
+        loaded[BankCredentialsService.NotesLabel].Should().Be(rtfNotes);
+
+        await using var c = f.Open();
+        var secrets = (await c.QueryAsync<(string label, int isSecret)>(
+            "SELECT label, is_secret FROM vault_field WHERE entry_id=@e ORDER BY label;",
+            new { e = entryId })).ToList();
+        secrets.Should().Contain(s => s.label == BankCredentialsService.CardPinLabel  && s.isSecret == 1);
+        secrets.Should().Contain(s => s.label == BankCredentialsService.PhonePinLabel && s.isSecret == 1);
+        // Notes is encrypted but not flagged secret — UI doesn't mask it.
+        secrets.Should().Contain(s => s.label == BankCredentialsService.NotesLabel    && s.isSecret == 0);
     }
 
     [TestMethod]

@@ -147,6 +147,7 @@ public sealed class BankAccount
     public string? HolderName { get; set; }
     public double? InterestRatePct { get; set; }
     public string? Notes { get; set; }
+    public string? Website { get; set; }
     public bool IsClosed { get; set; }
     public DateTimeOffset? ClosedDate { get; set; }
     public string? CloseReason { get; set; }
@@ -171,6 +172,53 @@ public sealed class BankAccountCredential
     /// to keep the schema stable if the list changes.</summary>
     public string Owner { get; set; } = string.Empty;
     public long VaultEntryId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+/// <summary>Polymorphic attachment row — payload is AES-GCM encrypted with the
+/// vault DEK, never stored in plaintext on disk. Linked to either a
+/// <see cref="BankAccount"/>, <see cref="VaultEntry"/>, or
+/// <see cref="Insurance"/> via (<see cref="TargetKind"/>, <see cref="TargetId"/>).
+/// Cascade deletion is handled by AFTER-DELETE triggers in migration 009 + 010.</summary>
+public sealed class Attachment
+{
+    public const string KindBankAccount = "bank_account";
+    public const string KindVaultEntry  = "vault_entry";
+    public const string KindInsurance   = "insurance";
+
+    public long Id { get; set; }
+    public string TargetKind { get; set; } = string.Empty;
+    public long TargetId { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public string? MimeType { get; set; }
+    public long SizeBytes { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>First-class insurance policy. Encrypted credentials + notes live
+/// in a linked <see cref="VaultEntry"/> of kind <c>insurance_login</c>; the
+/// columns here are the searchable display fields plus the
+/// <see cref="RenewalDate"/> we sort and badge by.</summary>
+public sealed class Insurance
+{
+    public const string CredentialsEntryKind = "insurance_login";
+
+    public long Id { get; set; }
+    public string InsurerCompany { get; set; } = string.Empty;
+    public string? PolicyNumber { get; set; }
+    public string? InsuranceType { get; set; }
+    public string? Website { get; set; }
+    /// <summary>Free-text owner label (Toshan/Devu/Prachi/Saloni); see
+    /// <see cref="VaultOwner"/>. Nullable so legacy rows pre-migration 011
+    /// load cleanly.</summary>
+    public string? Owner { get; set; }
+    /// <summary>Stored as ISO-8601 yyyy-MM-dd text. Nullable — historical
+    /// policies imported without a known date should still load.</summary>
+    public DateOnly? RenewalDate { get; set; }
+    /// <summary>Nullable until the user opens the credentials dialog at least
+    /// once; the entry is created on first save and the FK back-fills.</summary>
+    public long? VaultEntryId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }

@@ -1,8 +1,11 @@
 using System;
+using Microsoft.UI;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Media;
+using Windows.UI;
 
 namespace ToshanVault_App.Pages;
 
@@ -128,6 +131,16 @@ internal sealed class RichNotesField
         toolbar.Children.Add(new AppBarSeparator { Margin = new Thickness(2, 0, 2, 0) });
         toolbar.Children.Add(_familyCombo);
         toolbar.Children.Add(_sizeCombo);
+        toolbar.Children.Add(new AppBarSeparator { Margin = new Thickness(2, 0, 2, 0) });
+        toolbar.Children.Add(MakeColorButton(
+            "\uE8D3", "Font color",
+            color => Editor.Document.Selection.CharacterFormat.ForegroundColor = color,
+            includeAutomatic: true, automaticColor: Colors.Black));
+        toolbar.Children.Add(MakeColorButton(
+            "\uE790", "Highlight color",
+            color => Editor.Document.Selection.CharacterFormat.BackgroundColor = color,
+            includeAutomatic: true, automaticColor: Colors.Transparent,
+            automaticLabel: "No highlight"));
 
         var headerRow = new StackPanel
         {
@@ -188,6 +201,98 @@ internal sealed class RichNotesField
         };
         ToolTipService.SetToolTip(btn, tooltip);
         btn.Click += (_, _) => onClick();
+        return btn;
+    }
+
+    // Preset palette — Office-ish set kept short so the flyout stays compact.
+    // Hex order: black, white/auto, dark red, red, orange, yellow, green,
+    // teal, blue, purple. Highlight defaults are typically lighter; we still
+    // expose the same set to keep the picker simple.
+    private static readonly (string Name, Color Color)[] PaletteColors =
+    {
+        ("Black",      Color.FromArgb(255, 0,   0,   0)),
+        ("Dark grey",  Color.FromArgb(255, 89,  89,  89)),
+        ("Grey",       Color.FromArgb(255, 165, 165, 165)),
+        ("White",      Color.FromArgb(255, 255, 255, 255)),
+        ("Dark red",   Color.FromArgb(255, 192, 0,   0)),
+        ("Red",        Color.FromArgb(255, 255, 0,   0)),
+        ("Orange",     Color.FromArgb(255, 255, 153, 0)),
+        ("Yellow",     Color.FromArgb(255, 255, 255, 0)),
+        ("Light green",Color.FromArgb(255, 146, 208, 80)),
+        ("Green",      Color.FromArgb(255, 0,   176, 80)),
+        ("Teal",       Color.FromArgb(255, 0,   176, 240)),
+        ("Blue",       Color.FromArgb(255, 0,   112, 192)),
+        ("Dark blue",  Color.FromArgb(255, 0,   32,  96)),
+        ("Purple",     Color.FromArgb(255, 112, 48,  160)),
+    };
+
+    /// <summary>Toolbar button that opens a small palette flyout. The chosen
+    /// color is applied to the current selection via <paramref name="apply"/>.
+    /// "Automatic" is a sentinel that resets to the supplied
+    /// <paramref name="automaticColor"/> (used as the document default).</summary>
+    private static Button MakeColorButton(
+        string glyph,
+        string tooltip,
+        Action<Color> apply,
+        bool includeAutomatic,
+        Color automaticColor,
+        string automaticLabel = "Automatic")
+    {
+        var btn = new Button
+        {
+            Content = new FontIcon { Glyph = glyph, FontSize = 14 },
+            Padding = new Thickness(8, 2, 8, 2),
+            MinWidth = 36, MinHeight = 32,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        ToolTipService.SetToolTip(btn, tooltip);
+
+        var grid = new Grid { Margin = new Thickness(4) };
+        const int cols = 7;
+        for (var c = 0; c < cols; c++) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var rows = (int)Math.Ceiling((double)PaletteColors.Length / cols);
+        for (var r = 0; r < rows + (includeAutomatic ? 1 : 0); r++)
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var flyout = new Flyout();
+
+        for (var i = 0; i < PaletteColors.Length; i++)
+        {
+            var (name, color) = PaletteColors[i];
+            var swatch = new Button
+            {
+                Width = 24, Height = 24,
+                Margin = new Thickness(2),
+                Padding = new Thickness(0),
+                Background = new SolidColorBrush(color),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(255, 96, 96, 96)),
+                BorderThickness = new Thickness(1),
+            };
+            ToolTipService.SetToolTip(swatch, name);
+            var capturedColor = color;
+            swatch.Click += (_, _) => { apply(capturedColor); flyout.Hide(); };
+            Grid.SetRow(swatch, i / cols);
+            Grid.SetColumn(swatch, i % cols);
+            grid.Children.Add(swatch);
+        }
+
+        if (includeAutomatic)
+        {
+            var auto = new Button
+            {
+                Content = automaticLabel,
+                Margin = new Thickness(2, 4, 2, 2),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+            };
+            auto.Click += (_, _) => { apply(automaticColor); flyout.Hide(); };
+            Grid.SetRow(auto, rows);
+            Grid.SetColumnSpan(auto, cols);
+            grid.Children.Add(auto);
+        }
+
+        flyout.Content = grid;
+        btn.Flyout = flyout;
         return btn;
     }
 }
