@@ -283,7 +283,7 @@
                                         <StackPanel>
                                             <TextBlock Text="YOUR FINANCIAL ROADMAP" FontSize="22" FontWeight="ExtraBold"
                                                        Foreground="White" />
-                                            <TextBlock x:Name="CombinedSubtitle" FontSize="12" FontWeight="SemiBold" Margin="0,4,0,0">
+                                            <TextBlock x:Name="CombinedSubtitle" FontSize="15" FontWeight="SemiBold" Margin="0,4,0,0">
                                                 <TextBlock.Foreground>
                                                     <SolidColorBrush Color="#a8c4f0" />
                                                 </TextBlock.Foreground>
@@ -294,17 +294,17 @@
                                                 <SolidColorBrush Color="#f5a623" />
                                             </Border.Background>
                                             <StackPanel HorizontalAlignment="Center">
-                                                <TextBlock Text="🎯 YOUR GOAL" FontWeight="ExtraBold" FontSize="11" CharacterSpacing="50">
+                                                <TextBlock Text="🎯 YOUR GOAL" FontWeight="ExtraBold" FontSize="14" CharacterSpacing="50">
                                                     <TextBlock.Foreground>
                                                         <SolidColorBrush Color="#0d1f3c" />
                                                     </TextBlock.Foreground>
                                                 </TextBlock>
-                                                <TextBlock x:Name="CombinedGoalLine1" FontWeight="ExtraBold" FontSize="14" Margin="0,3,0,0" TextAlignment="Center">
+                                                <TextBlock x:Name="CombinedGoalLine1" FontWeight="ExtraBold" FontSize="18" Margin="0,3,0,0" TextAlignment="Center">
                                                     <TextBlock.Foreground>
                                                         <SolidColorBrush Color="#0d1f3c" />
                                                     </TextBlock.Foreground>
                                                 </TextBlock>
-                                                <TextBlock x:Name="CombinedGoalLine2" FontWeight="SemiBold" FontSize="11" TextAlignment="Center">
+                                                <TextBlock x:Name="CombinedGoalLine2" FontWeight="SemiBold" FontSize="14" TextAlignment="Center">
                                                     <TextBlock.Foreground>
                                                         <SolidColorBrush Color="#0d1f3c" />
                                                     </TextBlock.Foreground>
@@ -330,36 +330,36 @@
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0" Padding="14" Spacing="2">
-                                            <TextBlock Text="🏠  LOAN" FontSize="10" FontWeight="Bold">
+                                            <TextBlock Text="🏠  LOAN" FontSize="13" FontWeight="Bold">
                                                 <TextBlock.Foreground><SolidColorBrush Color="#a8c4f0" /></TextBlock.Foreground>
                                             </TextBlock>
-                                            <TextBlock x:Name="SnapLoanName" FontWeight="ExtraBold" FontSize="13" Foreground="White" />
-                                            <TextBlock x:Name="SnapPrincipal" FontSize="12" Foreground="White" />
+                                            <TextBlock x:Name="SnapLoanName" FontWeight="ExtraBold" FontSize="16" Foreground="White" />
+                                            <TextBlock x:Name="SnapPrincipal" FontSize="15" Foreground="White" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" Padding="14" Spacing="2">
-                                            <TextBlock Text="💳  REPAYMENT" FontSize="10" FontWeight="Bold">
+                                            <TextBlock Text="💳  REPAYMENT" FontSize="13" FontWeight="Bold">
                                                 <TextBlock.Foreground><SolidColorBrush Color="#a8c4f0" /></TextBlock.Foreground>
                                             </TextBlock>
-                                            <TextBlock x:Name="SnapPayment" FontWeight="ExtraBold" FontSize="13" Foreground="White" />
-                                            <TextBlock x:Name="SnapPaymentSub" FontSize="11">
+                                            <TextBlock x:Name="SnapPayment" FontWeight="ExtraBold" FontSize="16" Foreground="White" />
+                                            <TextBlock x:Name="SnapPaymentSub" FontSize="14">
                                                 <TextBlock.Foreground><SolidColorBrush Color="#4cd964" /></TextBlock.Foreground>
                                             </TextBlock>
                                         </StackPanel>
                                         <StackPanel Grid.Column="2" Padding="14" Spacing="2">
-                                            <TextBlock Text="🥇  GOLD STREAM" FontSize="10" FontWeight="Bold">
+                                            <TextBlock Text="🥇  GOLD STREAM" FontSize="13" FontWeight="Bold">
                                                 <TextBlock.Foreground><SolidColorBrush Color="#a8c4f0" /></TextBlock.Foreground>
                                             </TextBlock>
-                                            <TextBlock x:Name="SnapGold" FontWeight="ExtraBold" FontSize="13" Foreground="White" />
-                                            <TextBlock x:Name="SnapGoldSub" FontSize="11">
+                                            <TextBlock x:Name="SnapGold" FontWeight="ExtraBold" FontSize="16" Foreground="White" />
+                                            <TextBlock x:Name="SnapGoldSub" FontSize="14">
                                                 <TextBlock.Foreground><SolidColorBrush Color="#f5a623" /></TextBlock.Foreground>
                                             </TextBlock>
                                         </StackPanel>
                                         <StackPanel Grid.Column="3" Padding="14" Spacing="2">
-                                            <TextBlock Text="💰  INTEREST SAVED" FontSize="10" FontWeight="Bold">
+                                            <TextBlock Text="💰  INTEREST SAVED" FontSize="13" FontWeight="Bold">
                                                 <TextBlock.Foreground><SolidColorBrush Color="#a8c4f0" /></TextBlock.Foreground>
                                             </TextBlock>
-                                            <TextBlock x:Name="SnapInterest" FontWeight="ExtraBold" FontSize="13" Foreground="White" />
-                                            <TextBlock x:Name="SnapInterestSub" FontSize="11">
+                                            <TextBlock x:Name="SnapInterest" FontWeight="ExtraBold" FontSize="16" Foreground="White" />
+                                            <TextBlock x:Name="SnapInterestSub" FontSize="14">
                                                 <TextBlock.Foreground><SolidColorBrush Color="#4cd964" /></TextBlock.Foreground>
                                             </TextBlock>
                                         </StackPanel>
@@ -368,7 +368,7 @@
 
                                 <!-- TIMELINE -->
                                 <StackPanel Padding="22,18,22,8" Spacing="12">
-                                    <TextBlock Text="⏱  TIMELINE OVERVIEW" FontWeight="ExtraBold" FontSize="13" HorizontalAlignment="Center" CharacterSpacing="200">
+                                    <TextBlock Text="⏱  TIMELINE OVERVIEW" FontWeight="ExtraBold" FontSize="16" HorizontalAlignment="Center" CharacterSpacing="200">
                                         <TextBlock.Foreground><SolidColorBrush Color="#f5a623" /></TextBlock.Foreground>
                                     </TextBlock>
                                     <Grid x:Name="TimelineGrid" ColumnSpacing="8">
@@ -396,13 +396,13 @@
                                         <Border.Background><SolidColorBrush Color="#162d55" /></Border.Background>
                                         <Border.BorderBrush><SolidColorBrush Color="#4a9af5" /></Border.BorderBrush>
                                         <StackPanel Spacing="6">
-                                            <TextBlock Text="🏠  LOAN START" FontSize="11" FontWeight="ExtraBold">
+                                            <TextBlock Text="🏠  LOAN START" FontSize="14" FontWeight="ExtraBold">
                                                 <TextBlock.Foreground><SolidColorBrush Color="#4a9af5" /></TextBlock.Foreground>
                                             </TextBlock>
-                                            <TextBlock x:Name="Phase1Period" FontSize="9" FontWeight="Bold">
+                                            <TextBlock x:Name="Phase1Period" FontSize="12" FontWeight="Bold">
                                                 <TextBlock.Foreground><SolidColorBrush Color="#a8c4f0" /></TextBlock.Foreground>
                                             </TextBlock>
-                                            <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#d0e0ff">
+                                            <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="#d0e0ff">
                                                 <Run Text="› Pay base + extra each period" /><LineBreak/>
                                                 <Run Text="› Stay disciplined, no extra debt" /><LineBreak/>
                                                 <Run Text="› Track progress monthly" />
@@ -414,13 +414,13 @@
                                         <Border.Background><SolidColorBrush Color="#1a2e1a" /></Border.Background>
                                         <Border.BorderBrush><SolidColorBrush Color="#4cd964" /></Border.BorderBrush>
                                         <StackPanel Spacing="6">
-                                            <TextBlock Text="🎯  HALFWAY POINT" FontSize="11" FontWeight="ExtraBold">
+                                            <TextBlock Text="🎯  HALFWAY POINT" FontSize="14" FontWeight="ExtraBold">
                                                 <TextBlock.Foreground><SolidColorBrush Color="#4cd964" /></TextBlock.Foreground>
                                             </TextBlock>
-                                            <TextBlock x:Name="Phase2Period" FontSize="9" FontWeight="Bold">
+                                            <TextBlock x:Name="Phase2Period" FontSize="12" FontWeight="Bold">
                                                 <TextBlock.Foreground><SolidColorBrush Color="#a8c4f0" /></TextBlock.Foreground>
                                             </TextBlock>
-                                            <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#d0e0ff">
+                                            <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="#d0e0ff">
                                                 <Run Text="› Loan ~50% paid down" /><LineBreak/>
                                                 <Run Text="› Momentum building" /><LineBreak/>
                                                 <Run Text="› Consider increasing extras" />
@@ -432,13 +432,13 @@
                                         <Border.Background><SolidColorBrush Color="#2a1f0e" /></Border.Background>
                                         <Border.BorderBrush><SolidColorBrush Color="#f5a623" /></Border.BorderBrush>
                                         <StackPanel Spacing="6">
-                                            <TextBlock Text="🥇  GOLD ACCUMULATING" FontSize="11" FontWeight="ExtraBold">
+                                            <TextBlock Text="🥇  GOLD ACCUMULATING" FontSize="14" FontWeight="ExtraBold">
                                                 <TextBlock.Foreground><SolidColorBrush Color="#f5a623" /></TextBlock.Foreground>
                                             </TextBlock>
-                                            <TextBlock x:Name="Phase3Period" FontSize="9" FontWeight="Bold">
+                                            <TextBlock x:Name="Phase3Period" FontSize="12" FontWeight="Bold">
                                                 <TextBlock.Foreground><SolidColorBrush Color="#a8c4f0" /></TextBlock.Foreground>
                                             </TextBlock>
-                                            <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#d0e0ff">
+                                            <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="#d0e0ff">
                                                 <Run Text="› $500/fortnight to gold" /><LineBreak/>
                                                 <Run Text="› Loan + gold growing in parallel" /><LineBreak/>
                                                 <Run Text="› Long-term wealth buffer" />
@@ -450,13 +450,13 @@
                                         <Border.Background><SolidColorBrush Color="#1e1a2e" /></Border.Background>
                                         <Border.BorderBrush><SolidColorBrush Color="#af52de" /></Border.BorderBrush>
                                         <StackPanel Spacing="6">
-                                            <TextBlock Text="🏖  DEBT-FREE" FontSize="11" FontWeight="ExtraBold">
+                                            <TextBlock Text="🏖  DEBT-FREE" FontSize="14" FontWeight="ExtraBold">
                                                 <TextBlock.Foreground><SolidColorBrush Color="#af52de" /></TextBlock.Foreground>
                                             </TextBlock>
-                                            <TextBlock x:Name="Phase4Period" FontSize="9" FontWeight="Bold">
+                                            <TextBlock x:Name="Phase4Period" FontSize="12" FontWeight="Bold">
                                                 <TextBlock.Foreground><SolidColorBrush Color="#a8c4f0" /></TextBlock.Foreground>
                                             </TextBlock>
-                                            <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#d0e0ff">
+                                            <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="#d0e0ff">
                                                 <Run Text="› Loan cleared" /><LineBreak/>
                                                 <Run Text="› Gold buffer remaining" /><LineBreak/>
                                                 <Run Text="› Enjoy financial freedom" />
@@ -467,7 +467,7 @@
 
                                 <!-- PROJECTION TABLE + GOLD SIDEBAR -->
                                 <StackPanel Padding="20,4,20,18" Spacing="12">
-                                    <TextBlock Text="📊  YEAR-BY-YEAR PROJECTION" FontWeight="ExtraBold" FontSize="13" HorizontalAlignment="Center">
+                                    <TextBlock Text="📊  YEAR-BY-YEAR PROJECTION" FontWeight="ExtraBold" FontSize="16" HorizontalAlignment="Center">
                                         <TextBlock.Foreground><SolidColorBrush Color="#f5a623" /></TextBlock.Foreground>
                                     </TextBlock>
                                     <Grid ColumnSpacing="12">
@@ -483,10 +483,10 @@
                                                 <Border Padding="12,10">
                                                     <Border.Background><SolidColorBrush Color="#1a3a6e" /></Border.Background>
                                                     <StackPanel>
-                                                        <TextBlock Text="LOAN + GOLD COMBINED" FontWeight="ExtraBold" FontSize="11">
+                                                        <TextBlock Text="LOAN + GOLD COMBINED" FontWeight="ExtraBold" FontSize="14">
                                                             <TextBlock.Foreground><SolidColorBrush Color="#4a9af5" /></TextBlock.Foreground>
                                                         </TextBlock>
-                                                        <TextBlock Text="Year-end loan balance and accumulated gold value" FontSize="10">
+                                                        <TextBlock Text="Year-end loan balance and accumulated gold value" FontSize="13">
                                                             <TextBlock.Foreground><SolidColorBrush Color="#a8c4f0" /></TextBlock.Foreground>
                                                         </TextBlock>
                                                     </StackPanel>
@@ -498,9 +498,11 @@
                                                              HeadersVisibility="Column"
                                                              Background="Transparent"
                                                              Foreground="White"
+                                                             FontSize="14"
+                                                             RowHeight="32"
                                                              RowBackground="Transparent"
                                                              AlternatingRowBackground="#16263d"
-                                                             MaxHeight="320">
+                                                             MaxHeight="380">
                                                     <dg:DataGrid.Columns>
                                                         <dg:DataGridTextColumn Header="Year"           Binding="{Binding YearNumber}"      Width="60" />
                                                         <dg:DataGridTextColumn Header="Year ending"    Binding="{Binding YearEndText}"     Width="120" />
@@ -520,10 +522,10 @@
                                                     <Border.Background><SolidColorBrush Color="#2a1f0e" /></Border.Background>
                                                     <Border.BorderBrush><SolidColorBrush Color="#f5a623" /></Border.BorderBrush>
                                                     <StackPanel>
-                                                        <TextBlock Text="💛 GOLD GROWTH" FontWeight="ExtraBold" FontSize="11">
+                                                        <TextBlock Text="💛 GOLD GROWTH" FontWeight="ExtraBold" FontSize="14">
                                                             <TextBlock.Foreground><SolidColorBrush Color="#f5a623" /></TextBlock.Foreground>
                                                         </TextBlock>
-                                                        <TextBlock x:Name="GoldSidebarSub" FontSize="9">
+                                                        <TextBlock x:Name="GoldSidebarSub" FontSize="12">
                                                             <TextBlock.Foreground><SolidColorBrush Color="#c8a060" /></TextBlock.Foreground>
                                                         </TextBlock>
                                                     </StackPanel>
@@ -538,10 +540,10 @@
                                                                         <ColumnDefinition Width="*" />
                                                                         <ColumnDefinition Width="Auto" />
                                                                     </Grid.ColumnDefinitions>
-                                                                    <TextBlock Text="{Binding YearLabel}" FontSize="11" FontWeight="SemiBold">
+                                                                    <TextBlock Text="{Binding YearLabel}" FontSize="14" FontWeight="SemiBold">
                                                                         <TextBlock.Foreground><SolidColorBrush Color="#a8c4f0" /></TextBlock.Foreground>
                                                                     </TextBlock>
-                                                                    <TextBlock Grid.Column="1" Text="{Binding ValueText}" FontWeight="ExtraBold" FontSize="12">
+                                                                    <TextBlock Grid.Column="1" Text="{Binding ValueText}" FontWeight="ExtraBold" FontSize="15">
                                                                         <TextBlock.Foreground><SolidColorBrush Color="#f5a623" /></TextBlock.Foreground>
                                                                     </TextBlock>
                                                                 </Grid>
@@ -551,7 +553,7 @@
                                                 </ItemsControl>
                                                 <Border Padding="12,8" BorderThickness="0,1,0,0">
                                                     <Border.BorderBrush><SolidColorBrush Color="#2a1f0e" /></Border.BorderBrush>
-                                                    <TextBlock TextWrapping="Wrap" FontSize="10" FontStyle="Italic">
+                                                    <TextBlock TextWrapping="Wrap" FontSize="13" FontStyle="Italic">
                                                         <TextBlock.Foreground><SolidColorBrush Color="#c8a060" /></TextBlock.Foreground>
                                                         Gold is your "finishing weapon" — a growing buffer alongside the loan, not the main engine.
                                                     </TextBlock>
@@ -573,7 +575,7 @@
                                         <StackPanel>
                                             <Border Padding="14,10">
                                                 <Border.Background><SolidColorBrush Color="#1a3a6e" /></Border.Background>
-                                                <TextBlock Text="📅  KEY DATES" FontWeight="ExtraBold" FontSize="11">
+                                                <TextBlock Text="📅  KEY DATES" FontWeight="ExtraBold" FontSize="14">
                                                     <TextBlock.Foreground><SolidColorBrush Color="#4a9af5" /></TextBlock.Foreground>
                                                 </TextBlock>
                                             </Border>
@@ -586,24 +588,24 @@
                                         <StackPanel>
                                             <Border Padding="14,10">
                                                 <Border.Background><SolidColorBrush Color="#2a1a1a" /></Border.Background>
-                                                <TextBlock Text="📋  KEY STRATEGY RULES" FontWeight="ExtraBold" FontSize="11">
+                                                <TextBlock Text="📋  KEY STRATEGY RULES" FontWeight="ExtraBold" FontSize="14">
                                                     <TextBlock.Foreground><SolidColorBrush Color="#f56565" /></TextBlock.Foreground>
                                                 </TextBlock>
                                             </Border>
                                             <StackPanel Padding="14,8" Spacing="6">
-                                                <TextBlock Text="✅ DO" FontWeight="ExtraBold" FontSize="11">
+                                                <TextBlock Text="✅ DO" FontWeight="ExtraBold" FontSize="14">
                                                     <TextBlock.Foreground><SolidColorBrush Color="#4cd964" /></TextBlock.Foreground>
                                                 </TextBlock>
-                                                <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#d0e0ff">
+                                                <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="#d0e0ff">
                                                     <Run Text="✔ Pay extra consistently — every period counts" /><LineBreak/>
                                                     <Run Text="✔ Keep gold contributions automatic" /><LineBreak/>
                                                     <Run Text="✔ Re-run the calculator after rate changes" /><LineBreak/>
                                                     <Run Text="✔ Use offset/redraw to your advantage" />
                                                 </TextBlock>
-                                                <TextBlock Text="❌ DO NOT" FontWeight="ExtraBold" FontSize="11" Margin="0,6,0,0">
+                                                <TextBlock Text="❌ DO NOT" FontWeight="ExtraBold" FontSize="14" Margin="0,6,0,0">
                                                     <TextBlock.Foreground><SolidColorBrush Color="#f56565" /></TextBlock.Foreground>
                                                 </TextBlock>
-                                                <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#d0e0ff">
+                                                <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="#d0e0ff">
                                                     <Run Text="✗ Take on new debt during payoff" /><LineBreak/>
                                                     <Run Text="✗ Sell gold emotionally — wait for the strategic window" /><LineBreak/>
                                                     <Run Text="✗ Skip payments — even 1 month adds years" /><LineBreak/>
@@ -622,10 +624,10 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="🏆 DISCIPLINE TODAY = FREEDOM TOMORROW" FontWeight="ExtraBold" FontSize="14">
+                                        <TextBlock Text="🏆 DISCIPLINE TODAY = FREEDOM TOMORROW" FontWeight="ExtraBold" FontSize="18">
                                             <TextBlock.Foreground><SolidColorBrush Color="#0d1f3c" /></TextBlock.Foreground>
                                         </TextBlock>
-                                        <TextBlock Grid.Column="1" Text="Estimates only — not licensed financial advice." FontSize="11" FontWeight="SemiBold">
+                                        <TextBlock Grid.Column="1" Text="Estimates only — not licensed financial advice." FontSize="14" FontWeight="SemiBold">
                                             <TextBlock.Foreground><SolidColorBrush Color="#0d1f3c" /></TextBlock.Foreground>
                                         </TextBlock>
                                     </Grid>

@@ -231,11 +231,11 @@ public sealed partial class RetirementPlanningPage : Page
             Width = 38, Height = 38, CornerRadius = new CornerRadius(19),
             Background = new SolidColorBrush(ParseColor(bgHex)),
             HorizontalAlignment = HorizontalAlignment.Center,
-            Child = new TextBlock { Text = icon, FontSize = 18, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
+            Child = new TextBlock { Text = icon, FontSize = 22, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
         };
-        var labelTb = new TextBlock { Text = label.ToUpperInvariant(), FontWeight = Microsoft.UI.Text.FontWeights.ExtraBold, FontSize = 10, Foreground = new SolidColorBrush(Microsoft.UI.Colors.White), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) };
-        var dateTb  = new TextBlock { Text = date, FontSize = 9, Foreground = new SolidColorBrush(ParseColor("#a8c4f0")), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 2, 0, 0) };
-        var focusTb = new TextBlock { Text = focus.ToUpperInvariant(), FontSize = 9, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = new SolidColorBrush(ParseColor(accentHex)), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 3, 0, 0) };
+        var labelTb = new TextBlock { Text = label.ToUpperInvariant(), FontWeight = Microsoft.UI.Text.FontWeights.ExtraBold, FontSize = 13, Foreground = new SolidColorBrush(Microsoft.UI.Colors.White), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) };
+        var dateTb  = new TextBlock { Text = date, FontSize = 12, Foreground = new SolidColorBrush(ParseColor("#a8c4f0")), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 2, 0, 0) };
+        var focusTb = new TextBlock { Text = focus.ToUpperInvariant(), FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = new SolidColorBrush(ParseColor(accentHex)), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 3, 0, 0) };
         sp.Children.Add(dot);
         sp.Children.Add(labelTb);
         sp.Children.Add(dateTb);
@@ -261,6 +261,11 @@ public sealed partial class RetirementPlanningPage : Page
             VerticalAlignment = VerticalAlignment.Center,
         };
         var text = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        if (ReferenceEquals(panel, CombinedKeyDatesPanel))
+        {
+            text.Foreground = new SolidColorBrush(Microsoft.UI.Colors.White);
+            text.FontSize = 14;
+        }
         text.Inlines.Add(new Run { Text = $"{when:dd MMM yyyy}  ·  ", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
         text.Inlines.Add(new Run { Text = $"{title} — ", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
         text.Inlines.Add(new Run { Text = detail });
