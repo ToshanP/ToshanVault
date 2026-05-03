@@ -15,6 +15,11 @@
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Win32 icon embedded in the .exe so Windows Explorer / taskbar
+         pinning / shortcuts show the vault icon instead of the default
+         WinUI placeholder. Distinct from the Content reference below
+         (which packages the .ico for AppWindow.SetIcon at runtime). -->
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
