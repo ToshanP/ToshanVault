@@ -62,15 +62,23 @@ wb.xlsx.readFile(xlsxPath).then(() => {
   const lines = [];
   const now = new Date().toISOString();
 
+  function classify(title) {
+    const t = (title || '').toLowerCase();
+    if (/\beggs?\b|\banda\b/.test(t)) return 'Egg';
+    if (/\bchicken\b|\bmurgh?\b|\bkukad\b/.test(t)) return 'Chicken';
+    return 'Other';
+  }
+
   recipes.forEach((r) => {
     const mainUrl = r.urls[0] || '';
     let notes = null;
     if (r.urls.length > 1) {
       notes = 'Alternative URLs:\n' + r.urls.slice(1).map(u => '- ' + u).join('\n');
     }
+    const category = classify(r.title);
 
     lines.push(
-      `INSERT INTO recipe (title, author, cuisine, rating, youtube_url, thumbnail_path, notes_md, is_favourite, added_at) VALUES ('${esc(r.title)}', ${r.author ? "'" + esc(r.author) + "'" : 'NULL'}, 'Indian', ${r.tried ? 5 : 0}, '${esc(mainUrl)}', NULL, ${notes ? "'" + esc(notes) + "'" : 'NULL'}, ${r.tried ? 1 : 0}, '${now}');`
+      `INSERT INTO recipe (title, author, cuisine, rating, youtube_url, thumbnail_path, notes_md, is_favourite, is_tried, category, added_at) VALUES ('${esc(r.title)}', ${r.author ? "'" + esc(r.author) + "'" : 'NULL'}, 'Indian', ${r.tried ? 5 : 0}, '${esc(mainUrl)}', NULL, ${notes ? "'" + esc(notes) + "'" : 'NULL'}, ${r.tried ? 1 : 0}, ${r.tried ? 1 : 0}, '${category}', '${now}');`
     );
 
     // Auto-tags
