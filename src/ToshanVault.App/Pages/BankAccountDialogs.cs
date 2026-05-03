@@ -21,14 +21,12 @@ internal sealed class BankAccountDialog : ContentDialog
     private readonly ComboBox _type;
     private readonly ToggleSwitch _statusToggle;
     private readonly TextBlock _statusHint;
+    private readonly TextBox _closeReasonBox;
     private readonly TextBlock _err;
 
     // Captured inline when the user flips the toggle to closed; applied on Save.
     private string? _pendingCloseReason;
     private DateTimeOffset? _pendingClosedDate;
-    // Suppress the toggle's Toggled event during programmatic reverts (when the
-    // user cancels the nested confirm dialog).
-    private bool _suppressToggle;
 
     public BankAccountDialog(XamlRoot root, BankAccount? existing, AttachmentService? attachments = null)
     {
@@ -73,11 +71,26 @@ internal sealed class BankAccountDialog : ContentDialog
             Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
             TextWrapping = TextWrapping.Wrap,
         };
-        UpdateStatusHint();
-        _statusToggle.Toggled += async (_, _) =>
+        _closeReasonBox = new TextBox
         {
-            if (_suppressToggle) return;
-            if (_statusToggle.IsOn) await OnToggleToOpenAsync(); else await OnToggleToClosedAsync();
+            Header = "Reason for closing (optional)",
+            AcceptsReturn = true,
+            Height = 70,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Visibility = Visibility.Collapsed,
+        };
+        _closeReasonBox.TextChanged += (_, _) =>
+        {
+            _pendingCloseReason = string.IsNullOrWhiteSpace(_closeReasonBox.Text) ? null : _closeReasonBox.Text.Trim();
+            UpdateStatusHint();
+        };
+        UpdateStatusHint();
+        // Inline-only flow: NEVER open a nested ContentDialog from here — WinUI
+        // allows only one ContentDialog per XamlRoot and a second one throws
+        // a COMException that crashes the app.
+        _statusToggle.Toggled += (_, _) =>
+        {
+            ApplyToggleStatus();
             UpdateStatusHint();
         };
 
@@ -98,6 +111,7 @@ internal sealed class BankAccountDialog : ContentDialog
         {
             panel.Children.Add(_statusToggle);
             panel.Children.Add(_statusHint);
+            panel.Children.Add(_closeReasonBox);
         }
         panel.Children.Add(_err);
         // Attachments only on existing rows — new accounts must save first
@@ -151,61 +165,31 @@ internal sealed class BankAccountDialog : ContentDialog
         }
     }
 
-    private async Task OnToggleToClosedAsync()
+    private void ApplyToggleStatus()
     {
-        // Going open -> closed. If account was already closed in DB, this is just
-        // a no-op revert of an in-dialog reopen attempt; clear reopen intent.
-        if (_existing?.IsClosed == true)
+        if (_existing is null) return;
+        var nowOpen = _statusToggle.IsOn;
+        if (!nowOpen && !_existing.IsClosed)
         {
+            // Open -> Closed (newly being closed). Stage the close, surface the reason field.
+            _pendingClosedDate = DateTimeOffset.UtcNow;
+            _closeReasonBox.Visibility = Visibility.Visible;
+        }
+        else if (nowOpen && _existing.IsClosed)
+        {
+            // Closed -> Open (reopen). Clear any pending close intent + hide reason field.
             _pendingCloseReason = null;
             _pendingClosedDate = null;
-            return;
+            _closeReasonBox.Text = string.Empty;
+            _closeReasonBox.Visibility = Visibility.Collapsed;
         }
-
-        var dlg = new CloseConfirmDialog(XamlRoot!, _existing!);
-        var res = await dlg.ShowAsync();
-        if (res != ContentDialogResult.Primary)
+        else
         {
-            // User backed out — flip toggle back to open without re-firing.
-            _suppressToggle = true;
-            _statusToggle.IsOn = true;
-            _suppressToggle = false;
-            return;
-        }
-        _pendingCloseReason = string.IsNullOrWhiteSpace(dlg.Reason) ? null : dlg.Reason;
-        _pendingClosedDate = DateTimeOffset.UtcNow;
-    }
-
-    private async Task OnToggleToOpenAsync()
-    {
-        // closed -> open
-        if (_existing?.IsClosed != true)
-        {
-            // Was open in DB; this is reverting an in-dialog close attempt.
+            // Toggled back to original state — discard staged transition.
             _pendingCloseReason = null;
             _pendingClosedDate = null;
-            return;
-        }
-
-        var confirm = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = $"Reopen {_existing.Bank} · {_existing.AccountName}?",
-            Content = new TextBlock
-            {
-                Text = "Closed date and reason will be cleared. The account will return to the open list.",
-                TextWrapping = TextWrapping.Wrap,
-            },
-            PrimaryButtonText = "Reopen",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
-        };
-        var res = await confirm.ShowAsync();
-        if (res != ContentDialogResult.Primary)
-        {
-            _suppressToggle = true;
-            _statusToggle.IsOn = false;
-            _suppressToggle = false;
+            _closeReasonBox.Text = string.Empty;
+            _closeReasonBox.Visibility = Visibility.Collapsed;
         }
     }
 
@@ -236,6 +220,8 @@ internal sealed class BankAccountDialog : ContentDialog
         }
 
         var type = Enum.Parse<BankAccountType>((string)_type.SelectedItem);
+        // Snapshot original close state BEFORE mutating Result (which aliases _existing).
+        var wasClosed = _existing?.IsClosed ?? false;
         Result = _existing ?? new BankAccount();
         Result.Bank = bank;
         Result.AccountName = name;
@@ -253,12 +239,12 @@ internal sealed class BankAccountDialog : ContentDialog
         if (_existing is not null)
         {
             Result.IsClosed = !_statusToggle.IsOn;
-            if (Result.IsClosed && !_existing.IsClosed)
+            if (Result.IsClosed && !wasClosed)
             {
                 Result.ClosedDate = _pendingClosedDate ?? DateTimeOffset.UtcNow;
                 Result.CloseReason = _pendingCloseReason;
             }
-            else if (!Result.IsClosed && _existing.IsClosed)
+            else if (!Result.IsClosed && wasClosed)
             {
                 Result.ClosedDate = null;
                 Result.CloseReason = null;
@@ -410,35 +396,5 @@ internal sealed class OwnerPickerDialog : ContentDialog
         Content = panel;
 
         PrimaryButtonClick += (_, _) => SelectedOwner = _combo.SelectedItem as string;
-    }
-}
-
-// ---------------------------------------------------------------------------
-internal sealed class CloseConfirmDialog : ContentDialog
-{
-    public string Reason { get; private set; } = string.Empty;
-    private readonly TextBox _reason;
-
-    public CloseConfirmDialog(XamlRoot root, BankAccount account)
-    {
-        XamlRoot = root;
-        Title = $"Close {account.Bank} · {account.AccountName}?";
-        PrimaryButtonText = "Confirm close";
-        CloseButtonText = "Cancel";
-        DefaultButton = ContentDialogButton.Close;
-
-        _reason = new TextBox { Header = "Reason (optional)", AcceptsReturn = true, Height = 80, HorizontalAlignment = HorizontalAlignment.Stretch };
-
-        var panel = new StackPanel { Spacing = 8, Width = 460 };
-        panel.Children.Add(new TextBlock
-        {
-            Text = "The account row will be moved to the Closed Accounts tab. " +
-                   "Linked vault credentials will be KEPT — delete them manually from the Vault tab if no longer needed.",
-            TextWrapping = TextWrapping.Wrap,
-        });
-        panel.Children.Add(_reason);
-        Content = panel;
-
-        PrimaryButtonClick += (_, _) => Reason = _reason.Text ?? string.Empty;
     }
 }

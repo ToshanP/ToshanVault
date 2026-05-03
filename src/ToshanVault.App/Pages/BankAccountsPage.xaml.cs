@@ -108,6 +108,8 @@ public sealed partial class BankAccountsPage : Page
             var id = (long)((Button)sender).Tag;
             var existing = await _bankRepo.GetAsync(id);
             if (existing is null) { ShowError("Account not found."); await ReloadAsync(); return; }
+            // Snapshot original close state BEFORE the dialog (it mutates `existing` in place).
+            var wasClosed = existing.IsClosed;
 
             var dlg = new BankAccountDialog(this.XamlRoot, existing, _attachments);
             if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
@@ -115,12 +117,12 @@ public sealed partial class BankAccountsPage : Page
 
             await _bankRepo.UpdateAsync(result);
 
-            if (!existing.IsClosed && result.IsClosed)
+            if (!wasClosed && result.IsClosed)
             {
                 await _bankRepo.CloseAsync(id, result.CloseReason, result.ClosedDate);
                 ShowInfo($"Closed {result.Bank} · {result.AccountName}. Linked credentials kept.");
             }
-            else if (existing.IsClosed && !result.IsClosed)
+            else if (wasClosed && !result.IsClosed)
             {
                 await _bankRepo.ReopenAsync(id);
                 ShowInfo($"Reopened {result.Bank} · {result.AccountName}.");
