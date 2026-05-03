@@ -1,0 +1,28 @@
+# --- Live runtime data (NEVER commit user data) ---
+# vault.db is the user's encrypted SQLite database. The folder may also
+# hold sidecar files (-shm, -wal) and future backups. The path is
+# configurable via App\appsettings.json -> Storage.DatabaseFilePath.
+VaultDb/
+**/vault.db
+**/vault.db-shm
+**/vault.db-wal
+
+# --- Local workspace docs (kept out of source control by convention) ---
+# These are scratch / planning files that live next to the repo, not
+# project documentation. Add them under docs/ if they should be tracked.
+/plan.md
+/UI-Mockups.md
+/project-instructions.md
+
+# --- Build / tool output ---
+# NOTE: /App/ is intentionally tracked — it's the deployment artifact users
+# launch from. Republishing intentionally produces a diff that gets committed.
+**/bin/
+**/obj/
+
+# --- Editor / OS noise ---
+.vs/
+.vscode/*.log
+*.user
+Thumbs.db
+.DS_Store
