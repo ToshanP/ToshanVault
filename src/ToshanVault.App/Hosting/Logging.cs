@@ -29,8 +29,25 @@ public static class Logging
     {
         if (_initialised) return;
 
-        LogDirectory = Path.Combine(AppPaths.DataDirectory, "logs");
-        Directory.CreateDirectory(LogDirectory);
+        // Logs live under a machine-wide path so all users / elevated processes
+        // write to the same place. Falls back to %LOCALAPPDATA%\ToshanVault\logs
+        // if ProgramData is unwritable (e.g. locked-down corp images).
+        const string preferred = @"C:\ProgramData\Logs\ToshanVault";
+        try
+        {
+            Directory.CreateDirectory(preferred);
+            // Prove writability — Directory.CreateDirectory succeeds even on
+            // dirs we can't write to.
+            var probe = Path.Combine(preferred, ".write-probe");
+            File.WriteAllText(probe, string.Empty);
+            File.Delete(probe);
+            LogDirectory = preferred;
+        }
+        catch
+        {
+            LogDirectory = Path.Combine(AppPaths.DataDirectory, "logs");
+            Directory.CreateDirectory(LogDirectory);
+        }
         _logFilePath = Path.Combine(LogDirectory, "toshanvault-.log");
 
         Log.Logger = new LoggerConfiguration()
