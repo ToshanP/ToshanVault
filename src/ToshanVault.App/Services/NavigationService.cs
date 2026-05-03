@@ -10,9 +10,17 @@ namespace ToshanVault_App.Services;
 public sealed class NavigationService
 {
     private Frame? _rootFrame;
+    private Action<string>? _shellNavigator;
 
     public void RegisterRootFrame(Frame frame)
         => _rootFrame = frame ?? throw new ArgumentNullException(nameof(frame));
+
+    /// <summary>Wired by <see cref="Pages.MainShellPage"/> on load so other pages
+    /// (e.g. Dashboard tiles) can switch the NavView selection by tag.</summary>
+    public void RegisterShellNavigator(Action<string> nav)
+        => _shellNavigator = nav ?? throw new ArgumentNullException(nameof(nav));
+
+    public void NavigateInShell(string tag) => _shellNavigator?.Invoke(tag);
 
     public void NavigateToLogin()
     {

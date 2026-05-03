@@ -32,6 +32,7 @@ public sealed partial class MainShellPage : Page
         _wired = true;
 
         ContentFrame.Navigate(typeof(DashboardPage));
+        _nav.RegisterShellNavigator(NavigateByTag);
 
         _idle.Reset();
         _idle.IdleThresholdReached += OnIdleThreshold;
@@ -39,6 +40,26 @@ public sealed partial class MainShellPage : Page
         _idleTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _idleTimer.Tick += (_, _) => _idle.Tick();
         _idleTimer.Start();
+    }
+
+    /// <summary>
+    /// Programmatic NavView selection driver used by Dashboard tile clicks.
+    /// Setting <c>SelectedItem</c> raises <c>SelectionChanged</c> which performs
+    /// the frame navigation, so we don't duplicate the page-switch logic here.
+    /// </summary>
+    private void NavigateByTag(string tag)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            foreach (var obj in NavView.MenuItems)
+            {
+                if (obj is NavigationViewItem nvi && (nvi.Tag as string) == tag)
+                {
+                    NavView.SelectedItem = nvi;
+                    return;
+                }
+            }
+        });
     }
 
     private void OnIdleThreshold(object? sender, EventArgs e)
