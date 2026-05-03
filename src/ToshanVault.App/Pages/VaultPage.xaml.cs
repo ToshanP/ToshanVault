@@ -185,11 +185,27 @@ public sealed partial class VaultPage : Page
     // ---- Header tap / add-in-group ----------------------------------------
     private void GroupHeader_Tapped(object sender, TappedRoutedEventArgs e)
     {
+        // The header Border contains a "+ Add" Button. WinUI routed Tapped
+        // bubbles from the Button up to the Border, which would otherwise
+        // collapse the very group the user just clicked Add on (and the
+        // dialog opens against the wrong category). Suppress the toggle in
+        // that case - Click on the Button still fires.
+        if (e.OriginalSource is DependencyObject src && IsInsideButton(src)) return;
+
         if (sender is FrameworkElement fe && fe.DataContext is VaultGroupVm vm)
         {
             vm.IsExpanded = !vm.IsExpanded;
             e.Handled = true;
         }
+    }
+
+    private static bool IsInsideButton(DependencyObject d)
+    {
+        for (var node = d; node is not null; node = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(node))
+        {
+            if (node is Microsoft.UI.Xaml.Controls.Primitives.ButtonBase) return true;
+        }
+        return false;
     }
 
     private async void AddInGroup_Click(object sender, RoutedEventArgs e)
