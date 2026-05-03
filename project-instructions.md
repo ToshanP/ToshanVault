@@ -231,11 +231,40 @@ insurance(id INTEGER PK,
     insurer_company TEXT NOT NULL, policy_number TEXT,
     insurance_type TEXT,                        -- free text: Health/Car/Home/...
     website TEXT, renewal_date TEXT,            -- ISO yyyy-MM-dd, nullable
+    owner TEXT,                                 -- policy owner (free text dropdown)
+    notes TEXT,                                 -- plaintext RTF notes (migrated from vault_field)
     vault_entry_id INTEGER REFERENCES vault_entry(id) ON DELETE SET NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 -- indexes: ix_insurance_renewal, ix_insurance_vault_entry
 -- AFTER DELETE trigger trg_insurance_after_delete removes the linked
 -- vault_entry of kind='insurance_login' (cascades to its vault_field rows).
+
+-- Insurance multi-owner credentials (Phase 5f — migration 019)
+-- Mirrors bank_account_credential pattern. One policy can have N credential
+-- rows (one per family member who logs in to the insurer's portal).
+insurance_credential(id INTEGER PK,
+    insurance_id INTEGER NOT NULL REFERENCES insurance(id) ON DELETE CASCADE,
+    owner TEXT NOT NULL,                        -- "Toshan" / "Devangini" / etc
+    vault_entry_id INTEGER NOT NULL REFERENCES vault_entry(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    UNIQUE(insurance_id, owner));
+-- index ix_insurance_credential_insurance, ix_insurance_credential_entry
+-- AFTER DELETE trigger trg_insurance_credential_after_delete removes linked vault_entry.
+-- Back-fill: existing insurance.vault_entry_id rows → owner='Toshan'.
+
+-- Vault item multi-owner credentials (Phase 5f — migration 020)
+-- Each vault_entry (kind='web_login') can have N credential rows for different owners.
+web_credential(id INTEGER PK,
+    entry_id INTEGER NOT NULL REFERENCES vault_entry(id) ON DELETE CASCADE,
+    owner TEXT NOT NULL,                        -- "Toshan" / "Devangini" / etc
+    vault_entry_id INTEGER NOT NULL REFERENCES vault_entry(id),
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    UNIQUE(entry_id, owner));
+-- index ix_web_credential_entry, ix_web_credential_vault
+-- AFTER DELETE trigger trg_web_credential_after_delete removes linked vault_entry
+-- ONLY IF vault_entry_id != entry_id (legacy back-filled rows point to self).
+-- Back-fill: existing entries with username/password fields → owner='Toshan'.
 ```
 
 Migrations live in `Data\Migrations\*.sql` and are applied in order based on
@@ -248,12 +277,19 @@ Migrations live in `Data\Migrations\*.sql` and are applied in order based on
 1. Login (Hello + password)
 2. Dashboard (KPI tiles + recent activity)
 3. Budget → Monthly | Retirement | Gold (Pivot inside page)
-4. Vault — card list + detail pane
+4. Vault — grouped by category (collapsible banners), owner-initial credential avatars per entry
 5. Recipes — GridView + WebView2 detail
-6. Bank Accounts — list with masked BSB/acct#, edit / credentials (vault-linked) / close-with-confirm (Phase 5c)
-7. Closed Accounts — closed bank accounts with Reopen action; PDF export deferred to Phase 8
-7. Settings — security / data / integrations / about
-8. First-run Import Wizard
+6. Bank Accounts — list with masked BSB/acct#, owner-initial credential avatars, edit / notes popup / close
+7. Insurance — renewal countdown tiles, owner-initial credential avatars with Q&A
+8. Settings — security / data / integrations / about
+9. First-run Import Wizard
+
+**Shared UI components:**
+- **NotesWindow** — standalone `Window` (not ContentDialog) for full-height rich text editing. Called via `NotesWindow.ShowAsync(title, existingRtf)` → returns `(bool saved, string? newRtf)`. Used by: Bank Accounts, Vault items, Insurance policies, General Notes.
+- **OwnerPickerDialog** — `ContentDialog` listing available owners (from `KnownOwners` minus existing). Used by: Bank Accounts, Insurance, Vault before opening a credential dialog.
+- **RichNotesField** — reusable `UserControl` with RichEditBox + toolbar (bold/italic/underline, font, size, colours). Wrapped inside NotesWindow for the full-height experience.
+- **AttachmentsPanel** — reusable panel with file-picker + decrypt-open + delete. Used by Bank, Vault, Insurance edit dialogs.
+- **SecretFieldHelpers** — static helper to add PasswordBox with reveal toggle to any panel.
 
 ---
 
@@ -268,6 +304,8 @@ Migrations live in `Data\Migrations\*.sql` and are applied in order based on
 | 3 | data-layer | ✅ done | All 9 §7 tables in `002_data.sql`, domain models, Dapper repos (with snake↔Pascal mapping, enum-as-text, ISO DateTimeOffset). Adversarial review by 3 models (gpt-5.3-codex, claude-opus-4.6, gpt-5.4) — all FIX-AND-SHIP. Fixes: (a) `gold_price_cache` UPSERT guarded by `excluded.fetched_at > current` so stale fetches can't clobber fresh; (b) `budget_item.category_id` FK switched from `ON DELETE CASCADE` → `ON DELETE RESTRICT` to prevent silent child loss; (c) `VaultFieldRepository` Insert/Update wrap UTF-8 plaintext in try/finally + `CryptographicOperations.ZeroMemory` (matches existing decrypt-path discipline); (d) `RecipeRepository.SetTagsAsync` adds explicit catch + `RollbackAsync`; (e) dropped `ux_budget_category_name` (not in spec). Deferred: I8 (Vault TOCTOU + IClock), I9 (MetaRepository generic API), I10 (cross-repo unit-of-work). 43/43 tests pass; build green. |
 | 4 | importer | 🔧 partial / ⚠ blocked | `XlsxSanitizer` shipped + 7 tests pass. Strips `xl/drawings/`, `xl/media/`, `xl/charts/`, `xl/embeddings/`, `xl/diagrams/` parts and patches `[Content_Types].xml`, sheet `.rels`, sheet XML `<drawing>/<legacyDrawing>/<legacyDrawingHF>/<picture>` refs. Works around ClosedXML 0.104.2/0.105.0 picture-name validation crash on real `Toshan.xlsx`. Sheet readers + `ImportService` **paused** pending user re-organization of `Toshan.xlsx` into one-sheet-per-table with headers (3 of 4 sheets are free-form text blocks — see I11). Adversarial review (gpt-5.3-codex, FIX-AND-SHIP) closed: added `<legacyDrawingHF>` strip. 50/50 tests pass. |
 | 5e | insurance | ✅ done | First-class `insurance` entity (migration 010): insurer/policy#/type (free text)/website/renewal_date + nullable FK to `vault_entry` (kind=`insurance_login`) for credentials. `InsuranceRepository` (Dapper CRUD, sorted by renewal nulls-last); `InsuranceCredentialsService` mirrors `WebCredentialsService` with `insurance.*` label prefix and lazy vault_entry creation on first non-empty save; supports username/password/notes (single set, not multi-owner — joint policies deferred). Attachment table CHECK extended via 12-step rename-rebuild-copy recipe (preserves all existing rows + recreates indexes/triggers); new `trg_attachment_after_insurance_delete` and `trg_insurance_after_delete` cascades. New `DateOnly`/`DateOnly?` Dapper handlers in `DapperSetup` for `renewal_date`. `InsurancePage` (search + tile grid; renewal countdown badge — red ≤30d, amber ≤60d), `InsuranceDialog` (with attachments panel), `InsuranceCredentialsDialog` (username/password/RichNotes). Wired into `MainShellPage` (shield glyph \uE83D) and DI in `AppHost`. Build green; **84/84 tests pass** (+8 new InsuranceRepository + InsuranceCredentialsService tests covering round-trip, FK SET NULL on entry delete, cascade on insurance delete, lazy-no-create on empty save, narrow LoadLabels). |
+| 5f | multi-owner-credentials | ✅ done | Extended Insurance and Vault to multi-owner credentials (matching Bank Accounts pattern). Migration 019 (insurance_credential) + 020 (web_credential). Services rewritten: `InsuranceCredentialsService.SaveAsync(insuranceId, owner, entryName, fields)` and `WebCredentialsService.SaveCredentialsAsync(entryId, owner, entryName, fields)`. New repos: `InsuranceCredentialRepository`, `WebCredentialRepository`. UI: owner-initial avatar buttons with `OwnerPickerDialog`, delete support. Insurance dialog now includes Q&A (10 pairs). All existing credentials back-filled as owner='Toshan'. Build green; **129/129 tests pass**. |
+| 5g | notes-popup | ✅ done | Extracted notes editing into standalone `NotesWindow` (separate `Window`, not ContentDialog) for full-height rich text editing. Notes icon buttons replace inline notes in edit dialogs. Insurance.notes column added (plaintext, migration via `MigrateNotesToColumnAsync` decrypts old vault_field notes). Notes removed from Bank Account edit dialogs, Insurance edit dialogs — now accessed via dedicated icon on each tile. Build green; tests pass. |
 | 5d | attachments + rich notes + multi-owner bank + tile previews | ✅ done | Several user-driven UX deltas merged (post-5c, pre-5e): (1) **Attachments** — migration 009 polymorphic `attachment` table; `AttachmentService` AES-GCM encrypts payloads with the vault DEK; `AttachmentsPanel` reusable WinUI control with file-picker + open-temp-decrypted + delete; wired into `BankAccountDialog` and `VaultEntryDialog` (existing rows only). (2) **Rich notes** — `RichNotesField` reusable RichEditBox wrapper with bold/italic/underline + font + size + foreground/background colour pickers; persisted as RTF in encrypted vault_field rows (`varbinary(max)`-equivalent BLOB). Bank Notes + Bank-credentials Notes + Vault Additional-Details all migrated to RichNotesField. (3) **Multi-owner bank credentials** — migration 006 `bank_account_credential` table + label `bank_login.*` namespace; `BankCredentialsService` rewritten for owner-keyed save/load; tile actions show male/female icons (\uE13D / \uE13E) per owner instead of "Edit/Toshan/Devangini" buttons. (4) **Bank dialog adds** — Website + Card PIN + Phone-banking PIN encrypted fields (PINs via `SecretFieldHelpers`). (5) **Vault tile preview** — Number + Website narrow-decrypted via new `WebCredentialsService.LoadLabelsAsync(IReadOnlyCollection<string>)` (Dapper IN expansion); tile grew 240×140→260×170. `VaultPage.OnNavigatedTo` has dedicated `catch (VaultLockedException) { _nav.NavigateToLogin(); }` to defeat the swallow-by-broad-catch H finding. (6) **App-wide UX** — `MainWindow.Maximize` re-asserted on activation (full screen on launch); `LoginPage` master-password autofocus (immediate Focus → Low-priority dispatcher → PasswordBox.Loaded fallbacks); Enter-on-login fires the unlock button; per-tile-page `AutoSuggestBox` search across name/owner/number/website. All work passed Anvil 🟡/🔴 reviews; tests grew 63→76→84. |
 | 5c | bank-accounts | ✅ done | Single `bank_account` table with `is_closed` flag (Option A); migration 003 drops legacy `closed_account` stub. Domain: `BankAccount` POCO + `BankAccountType` enum (incl. `Mortgage`; `interest_rate_pct` retained for future retirement plan). Repo: Insert/Update validation, transactional+idempotent `CloseAsync`, `ReopenAsync` (throws if not closed), `GetActive`/`GetClosed`. Internet-banking credentials (username, client_id, password, up to 10 Q/A pairs) stored in vault_entry (kind='bank_login') + vault_field encrypted at rest per §6; FK `vault_entry_id ON DELETE SET NULL`. `BankAccountsPage` (list + Add/Edit/Credentials/Close) with masked BSB (hidden) and account# (last 4); `ClosedAccountsPage` rewritten to show closed rows with Reopen. Three new dialogs (`BankAccountDialog`, `CredentialsDialog`, `CloseConfirmDialog`); credentials dialog uses `UpsertFieldAsync` that deletes empty fields rather than persisting empty encrypted blobs. Build green; 57/57 tests pass (+7 new BankAccountRepository tests, -1 obsolete ClosedAccount test); smoke launch alive ≥8 s; three-reviewer pass per Anvil 🔴 protocol. |
 | 5a | app-foundation | ✅ done | `AppHost` (MEDI composition root, idempotent `Build()` from `App.OnLaunched`), `AppPaths` (`%LOCALAPPDATA%\ToshanVault\vault.db`, env override `TOSHANVAULT_DATA_DIR`), `IdleLockService` (1Hz `DispatcherTimer`, `GetLastInputInfo` probe, default 10 min), `NavigationService`, `LoginPage` (first-run vs unlock, runs migrations on `OnNavigatedTo`, 750 ms backoff stub on `WrongPasswordException`), `MainShellPage` (NavigationView with 5 main + Lock/About + Settings, idle-lock event wiring), 5 placeholder pages (Dashboard/Budget/Vault/Recipes/ClosedAccounts). Re-pivoted from Phase 4 (xlsx blocked on free-form spreadsheet) so UI exists to drive data shape. Build green; 50/50 prior tests still pass. Smoke launch verified (required `<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>` — see I12). App test ref dropped: WindowsAppSDK auto-init `<Module>` cctor crashes `dotnet test` (see I12). |
@@ -413,6 +451,9 @@ WinUI 3 packaged apps cannot run on `AnyCPU` and we only ship Win 11 x64.
 | 2026-05-03 | **Data loss incident & recovery**. `publish-single.ps1` originally wiped `App\` including user's `VaultDb\`; script now explicitly preserves data folders. Retirement items re-seeded via `tools\seed-retirement.ps1` (16 rows). Gold ornaments re-seeded via `tools\seed-gold.ps1` (54 items from 30/01/2022 inventory). Recipes imported from `Book1.xlsx` via `tools\parse-recipes-xlsx.js` + `tools\seed-recipes.ps1` (80 recipes, 20 tried) |
 | 2026-05-03 | **Recipe categories fixed**. Seed SQL was missing `category` and `is_tried` columns. Applied UPDATE to classify 66 Chicken / 10 Egg / 4 Other; set `is_tried=1` on 20 tried recipes. Fixed `parse-recipes-xlsx.js` to include both columns in future runs |
 | 2026-05-03 | **Gold page: AUD → $**. Replaced all 5 "AUD" currency prefixes with "$" in `GoldOrnamentsPage.xaml.cs` and `.xaml` |
+| 2026-05-04 | **NotesWindow popup implemented**. Extracted notes editing from all edit dialogs into a standalone `Window` (`NotesWindow.xaml.cs`). Uses 90% screen width/height. RichNotesField placed inside a Grid with Auto+Star rows so the editor fills the full available height. Notes icon button (📝 glyph \uE70B) added to Bank Account, Vault, and Insurance tiles. Notes removed from edit dialog forms. Insurance: `insurance.notes` column added (plaintext, stored in DB not vault_field), with `MigrateNotesToColumnAsync()` to decrypt old vault_field notes on first navigation. General Notes page already used it. Committed: `edc0089` |
+| 2026-05-04 | **Multi-owner credentials for Insurance + Vault**. Replicated the Bank Accounts multi-owner credential pattern. Migrations 019 (`insurance_credential`) and 020 (`web_credential`) create junction tables with `UNIQUE(parent_id, owner)` + cascade delete triggers. Back-fill: existing vault_entry_id rows assigned owner='Toshan'. `InsuranceCredentialsService` fully rewritten: `SaveAsync(insuranceId, owner, entryName, fields)` creates/reuses insurance_credential row + vault_entry. `WebCredentialsService` gained `SaveCredentialsAsync(entryId, owner, entryName, fields)` (SaveAsync preserved for item-level fields). New repos: `InsuranceCredentialRepository`, `WebCredentialRepository`. UI: owner-initial avatar buttons (circular, showing first letter of owner) + "+" button for adding new owners via `OwnerPickerDialog`. `InsuranceCredentialsDialog` and `VaultCredentialsDialog` now include owner in title, Q&A (up to 10 pairs), and delete button (secondary). `KnownOwners` shared: ["Toshan","Devangini","Prachi","Saloni"]. 129/129 tests pass. Committed: `c1f0d9a` |
+| 2026-05-04 | **User decision: keep duplicated credential pattern** per page (Bank/Insurance/Vault) rather than creating a shared credential component. Rationale: dialogs differ per domain (Bank has CardPin/PhonePin/ClientID; Insurance has Username/Password/Q&A; Vault has Username/Password/Q&A) and for a personal app the simplicity of duplicated patterns outweighs DRY concerns |
 
 ---
 
@@ -424,6 +465,64 @@ WinUI 3 packaged apps cannot run on `AnyCPU` and we only ship Win 11 x64.
 - **No magic strings** — DB column names live in `Schema` const class.
 - **Comments** — only where the *why* isn't obvious. No `//get name` style noise.
 - **Logging** — Serilog static facade configured in `ToshanVault_App.Hosting.Logging`. Inside the App layer use `Logging.ForContext<T>()` for context-scoped loggers, or `Serilog.Log.Information/Warning/Error/Fatal(...)` for top-level. **Library projects (Core/Data/Importer) do NOT reference Serilog** — they throw typed exceptions, the App catches at the UI boundary and logs there. Log file: `%LOCALAPPDATA%\ToshanVault\logs\toshanvault-YYYYMMDD.log` (rolling daily, 14-day retention, shared write).
+
+### 13.1 Multi-Owner Credential Pattern
+
+All three entity types (Bank Account, Insurance, Vault) follow the same pattern for per-owner encrypted credentials:
+
+**Architecture:**
+1. **Junction table** — `{entity}_credential(id, {entity}_id, owner, vault_entry_id, created_at, updated_at, UNIQUE({entity}_id, owner))`
+2. **Cascade chain** — entity delete → CASCADE to credential rows → AFTER DELETE trigger on credential → deletes vault_entry → CASCADE to vault_field rows
+3. **Service** — `Save{Entity}CredentialsAsync(entityId, owner, entryName, fields)` creates/reuses credential row + vault_entry; encrypts fields into vault_field
+4. **Repository** — read-side: `GetBy{Entity}Async(entityId)` returns all credential rows; `DeleteAsync(credId)` removes one
+5. **UI** — tile shows `ItemsControl` of owner-initial avatar buttons + "+" button; click → load fields from vault_entry → open dialog; "+" → `OwnerPickerDialog` (lists owners not yet used) → open dialog with null vaultEntryId
+
+**KnownOwners:** `["Toshan", "Devangini", "Prachi", "Saloni"]` — shared via `BankCredentialsService.KnownOwners`; referenced by Insurance and Web services.
+
+**Credential dialog pattern:**
+- Title: `"{domain} · {entity name} · {owner}"`
+- Primary button: "Save (encrypted)"
+- Secondary button: "Delete credential" (only if editing existing — `allowDelete: true`)
+- Close button: "Cancel"
+- `DeleteRequested` flag on dialog; page shows confirmation ContentDialog AFTER the cred dialog closes (WinUI only allows one open ContentDialog per XamlRoot)
+- After save/delete: wipe model fields (Username/Password/Qa) to minimise plaintext lifetime
+
+**Label namespaces (prevent collision in vault_field):**
+- Bank: `bank_login.username`, `bank_login.password`, `bank_login.client_id`, `bank_login.card_pin`, `bank_login.phone_pin`, `bank_login.q1`–`q10`, `bank_login.a1`–`a10`, `bank_login.notes`
+- Insurance: `insurance.username`, `insurance.password`, `insurance.q1`–`q10`, `insurance.a1`–`a10`, `insurance.notes`
+- Vault: `web_login.username`, `web_login.password`, `web_login.q1`–`q10`, `web_login.a1`–`a10`, `web_login.number`, `web_login.website`, `web_login.additional_details`
+
+### 13.2 NotesWindow Pattern
+
+Notes are edited in a standalone `Window` (not ContentDialog) for maximum editing area:
+
+```csharp
+var (saved, value) = await NotesWindow.ShowAsync("Title", existingRtf);
+if (!saved) return;
+// persist value
+```
+
+- Window size: 90% of screen width/height
+- Content: RichNotesField (RichEditBox + toolbar) placed in a Grid with `Auto` (header) + `*` (editor) rows
+- Returns RTF string on save, null/unchanged on cancel
+- Used by: General Notes, Bank Accounts, Vault items, Insurance policies
+- Triggered by: Notes icon button (glyph \uE70B) on each tile
+
+### 13.3 Tile Icon Buttons
+
+All entity tiles use consistent 32×32 icon buttons (no text). Standard set per tile:
+- ✏️ Edit (glyph \uE70F) — opens entity edit dialog
+- 📝 Notes (glyph \uE70B) — opens NotesWindow popup
+- 👤 Owner initials (circular, CornerRadius=16) — opens credential dialog for that owner
+- ➕ Add credential (glyph \uE710) — opens OwnerPickerDialog then credential dialog
+- 🗑️ Delete (glyph \uE74D) — confirms then deletes entity
+
+### 13.4 Encryption Rules
+
+- **Encrypted (vault_field):** passwords, PINs, security answers, client IDs, usernames
+- **Plaintext (DB column):** notes (RTF), website URLs, phone numbers, policy numbers, names
+- Only fields that would cause harm if the DB file were stolen are encrypted
+- Notes were explicitly moved to plaintext per user decision (only passwords + secret answers need encryption)
 - **User-visible errors** — never call `ShowError(ex.Message)` directly on the bare exception; many WinRT/COM exceptions have empty `Message`. Use a page-local `FormatError(ex)` helper (see `GoldOrnamentsPage.xaml.cs`) that walks the `InnerException` chain and appends the log file path. Always pair the InfoBar with a `_log.Error(ex, "...")` so the full stack lands on disk.
 - **Secrets** — never logged, never displayed in tooltips, never written outside `vault_field.value_enc`.
 
@@ -526,11 +625,14 @@ copilot --resume=face5148-645d-4b5e-b4e8-1b138e9a16e9
 - 5 projects exist with all NuGet packages restored ✅
 - Project references wired correctly ✅
 - Build is **green** (`dotnet build ToshanVault.slnx -c Debug -p:Platform=x64`) ✅
-- 133 unit tests pass ✅
+- 129 unit tests pass (4 skipped — xlsx sanitizer tests require source file) ✅
 - All major features implemented: auth, vault, budget, bank accounts, insurance, recipes, gold, retirement, dashboard
+- Multi-owner credentials on all three entity types (Bank, Insurance, Vault) ✅
+- NotesWindow popup for all note-bearing entities ✅
 - Single-file publish works via `tools\publish-single.ps1` ✅
 - SQLite DB at `App\VaultDb\vault.db` with seeded data (54 gold items, 80 recipes, 16 retirement items)
 - Publish script preserves VaultDb folder and *.db files
+- Migrations 001–020 applied (schema_ver=20)
 
 ### G. Quick orientation files
 
@@ -543,4 +645,56 @@ copilot --resume=face5148-645d-4b5e-b4e8-1b138e9a16e9
 | `tools\seed-gold.ps1` | Seeds 54 gold ornament rows |
 | `tools\parse-recipes-xlsx.js` | Parses Book1.xlsx → seed-recipes.sql |
 | `tools\seed-recipes.ps1` | Runs seed-recipes.sql against vault.db |
+
+### H. Key source files (architecture map)
+
+**Services (Data layer — `src\ToshanVault.Data\Repositories\`):**
+| File | Purpose |
+|------|---------|
+| `BankCredentialsService.cs` | Multi-owner bank credential encrypt/decrypt (reference implementation) |
+| `InsuranceCredentialsService.cs` | Multi-owner insurance credential encrypt/decrypt + notes migration |
+| `WebCredentialsService.cs` | Multi-owner vault item credential encrypt/decrypt |
+| `BankAccountCredentialRepository.cs` | Read-side: `GetByAccountAsync`, `DeleteAsync` |
+| `InsuranceCredentialRepository.cs` | Read-side: `GetByInsuranceAsync`, `DeleteAsync` |
+| `WebCredentialRepository.cs` | Read-side: `GetByEntryAsync`, `DeleteAsync` |
+| `GeneralNotesService.cs` | General notes CRUD |
+
+**Pages (App layer — `src\ToshanVault.App\Pages\`):**
+| File | Purpose |
+|------|---------|
+| `BankAccountsPage.xaml/.cs` | Bank accounts — reference for multi-owner credential UI pattern |
+| `BankAccountDialogs.cs` | `CredentialsDialog`, `OwnerPickerDialog` (reused by Insurance/Vault) |
+| `InsurancePage.xaml/.cs` | Insurance tiles with credential avatars |
+| `InsuranceDialogs.cs` | `InsuranceDialog`, `InsuranceCredentialsDialog` (with Q&A) |
+| `VaultPage.xaml/.cs` | Vault with category grouping + credential avatars |
+| `VaultDialogs.cs` | `VaultEntryDialog`, `VaultCredentialsDialog` (with Q&A + delete) |
+| `NotesWindow.xaml/.cs` | Standalone notes window (full-height RichEditBox) |
+
+**Migrations (Data layer — `src\ToshanVault.Data\Schema\Migrations\`):**
+| File | Content |
+|------|---------|
+| `001_init.sql` | meta table |
+| `002_data.sql` | All core tables (budget, vault, recipe, gold, retirement) |
+| `003_bank_account.sql` | bank_account + migrate closed_account |
+| `006_bank_credential.sql` | bank_account_credential multi-owner |
+| `009_attachment.sql` | Polymorphic attachment table |
+| `010_insurance.sql` | insurance entity + attachment CHECK rebuild |
+| `011_insurance_owner.sql` | insurance.owner column |
+| `012_recipe_tried_category.sql` | recipe.is_tried + recipe.category |
+| `019_insurance_credential.sql` | insurance_credential multi-owner |
+| `020_web_credential.sql` | web_credential multi-owner |
+
+### I. Build & test commands
+
+```powershell
+# Build (Debug x64)
+dotnet build ToshanVault.slnx -c Debug -p:Platform=x64 --nologo -v:q
+
+# Run tests (after build)
+dotnet test tests\ToshanVault.Tests\ToshanVault.Tests.csproj -c Debug -p:Platform=x64 --nologo --no-build
+
+# Publish single-file exe (~98 MB)
+pwsh tools\publish-single.ps1
+# Output: App\ToshanVault.App.exe + App\appsettings.json + App\VaultDb\vault.db
+```
 
