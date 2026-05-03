@@ -36,7 +36,11 @@ public sealed partial class InsurancePage : Page
 
     protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
-        try { await ReloadAsync(); }
+        try
+        {
+            await _credService.MigrateNotesToColumnAsync();
+            await ReloadAsync();
+        }
         catch (VaultLockedException) { _nav.NavigateToLogin(); }
         catch (Exception ex) { ShowError(ex.Message); }
     }
@@ -157,8 +161,6 @@ public sealed partial class InsurancePage : Page
             {
                 new(InsuranceCredentialsService.UsernameLabel, creds.Username, false),
                 new(InsuranceCredentialsService.PasswordLabel, creds.Password, true),
-                // Preserve existing credential notes (now edited via notes popup on the insurance table)
-                new(InsuranceCredentialsService.NotesLabel, loaded.GetValueOrDefault(InsuranceCredentialsService.NotesLabel, ""), false),
             };
             await _credService.SaveAsync(id, specs);
             ShowInfo("Credentials saved (encrypted in vault).");

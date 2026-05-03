@@ -31,9 +31,26 @@ public sealed partial class NotesWindow : Window
 
         _notes = new RichNotesField(string.Empty, initialValue, minHeight: 400);
 
-        // Host the RichNotesField inside the border — replace the empty
-        // Border with a Grid containing the notes field container.
-        EditorHost.Child = _notes.Container;
+        // The RichNotesField.Container is a StackPanel (toolbar + editor) which
+        // doesn't stretch vertically. Restructure into a Grid so the editor
+        // fills the full available height of the window.
+        var stack = (Microsoft.UI.Xaml.Controls.StackPanel)_notes.Container;
+        var header = stack.Children[0];
+        var editor = stack.Children[1];
+        stack.Children.Clear();
+
+        var grid = new Grid();
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+        Grid.SetRow((FrameworkElement)header, 0);
+        Grid.SetRow((FrameworkElement)editor, 1);
+        ((FrameworkElement)editor).VerticalAlignment = VerticalAlignment.Stretch;
+
+        grid.Children.Add(header);
+        grid.Children.Add(editor);
+
+        EditorHost.Child = grid;
 
         SizeWindow();
 

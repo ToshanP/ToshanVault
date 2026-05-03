@@ -209,4 +209,51 @@ public sealed class InsuranceCredentialsService
                 if (sf.Plaintext is not null) CryptographicOperations.ZeroMemory(sf.Plaintext);
         }
     }
+
+    /// <summary>
+    /// One-time migration: decrypts old encrypted notes from vault_field and
+    /// copies them into the plaintext insurance.notes column. Idempotent —
+    /// only processes rows where insurance.notes IS NULL and an encrypted note exists.
+    /// After copying, deletes the vault_field row (notes don't need encryption).
+    /// </summary>
+    public async Task MigrateNotesToColumnAsync(CancellationToken ct = default)
+    {
+        // Find insurance entries that have a vault entry but no plaintext notes yet.
+        await using var conn = _factory.Open();
+        var candidates = await conn.QueryAsync<(long Id, long VaultEntryId)>(new CommandDefinition(
+            @"SELECT id, vault_entry_id FROM insurance
+              WHERE vault_entry_id IS NOT NULL AND (notes IS NULL OR notes = '');",
+            cancellationToken: ct)).ConfigureAwait(false);
+
+        foreach (var (insId, entryId) in candidates)
+        {
+            // Check if an encrypted notes field exists for this entry.
+            var row = await conn.QuerySingleOrDefaultAsync<VaultFieldRow>(new CommandDefinition(
+                @"SELECT id, entry_id, label, value_enc, iv, tag, is_secret
+                  FROM vault_field WHERE entry_id=@entryId AND label=@label;",
+                new { entryId, label = NotesLabel },
+                cancellationToken: ct)).ConfigureAwait(false);
+
+            if (row is null) continue;
+
+            // Decrypt the notes value.
+            var pt = _vault.DecryptField(row.Iv, row.ValueEnc, row.Tag);
+            string plaintext;
+            try { plaintext = Encoding.UTF8.GetString(pt); }
+            finally { CryptographicOperations.ZeroMemory(pt); }
+
+            if (string.IsNullOrWhiteSpace(plaintext)) continue;
+
+            // Write to the plaintext column and delete the encrypted vault_field row.
+            await conn.ExecuteAsync(new CommandDefinition(
+                "UPDATE insurance SET notes=@notes, updated_at=@now WHERE id=@id;",
+                new { notes = plaintext, now = DateTimeOffset.UtcNow, id = insId },
+                cancellationToken: ct)).ConfigureAwait(false);
+
+            await conn.ExecuteAsync(new CommandDefinition(
+                "DELETE FROM vault_field WHERE id=@id;",
+                new { id = row.Id },
+                cancellationToken: ct)).ConfigureAwait(false);
+        }
+    }
 }
