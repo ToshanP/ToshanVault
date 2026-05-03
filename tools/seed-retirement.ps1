@@ -33,22 +33,45 @@ if (-not (Test-Path $DbPath)) {
     throw "Database not found at $DbPath. Launch the app first, click Yes on the database-missing prompt, set your vault password, then re-run this script."
 }
 
-# Locate the Microsoft.Data.Sqlite assembly + native engine from the nuget cache.
-$sqliteDll = (Get-ChildItem "$env:USERPROFILE\.nuget\packages\microsoft.data.sqlite.core" -Recurse -Filter 'Microsoft.Data.Sqlite.dll' -EA Stop |
-    Where-Object { $_.FullName -match 'net8\.0' } | Select-Object -Last 1).FullName
-$rawCore   = (Get-ChildItem "$env:USERPROFILE\.nuget\packages\sqlitepclraw.core" -Recurse -Filter 'SQLitePCLRaw.core.dll' -EA Stop |
-    Where-Object { $_.FullName -match 'net8\.0' } | Select-Object -Last 1).FullName
-$rawProv   = (Get-ChildItem "$env:USERPROFILE\.nuget\packages\sqlitepclraw.provider.e_sqlite3" -Recurse -Filter 'SQLitePCLRaw.provider.e_sqlite3.dll' -EA Stop |
-    Where-Object { $_.FullName -match 'net8\.0' } | Select-Object -Last 1).FullName
-$rawBatt   = (Get-ChildItem "$env:USERPROFILE\.nuget\packages\sqlitepclraw.batteries_v2" -Recurse -Filter 'SQLitePCLRaw.batteries_v2.dll' -EA Stop |
-    Where-Object { $_.FullName -match 'net8\.0' } | Select-Object -Last 1).FullName
-$nativeDir = (Get-ChildItem "$env:USERPROFILE\.nuget\packages\sqlitepclraw.lib.e_sqlite3" -Recurse -Filter 'e_sqlite3.dll' -EA Stop |
-    Where-Object { $_.FullName -match 'win-x64\\native' } | Select-Object -Last 1).Directory.FullName
-$env:PATH = "$nativeDir;$env:PATH"
-Add-Type -Path $rawCore
-Add-Type -Path $rawProv
-Add-Type -Path $rawBatt
-Add-Type -Path $sqliteDll
+# Locate Microsoft.Data.Sqlite + native engine. Prefer the app's own build
+# output (Release first, then Debug) since it ships the exact set of DLLs
+# needed for this runtime; fall back to the nuget cache if neither exists.
+$repoRoot = Split-Path $PSScriptRoot -Parent
+$candidateDirs = @(
+    (Join-Path $repoRoot 'src\ToshanVault.App\bin\x64\Release'),
+    (Join-Path $repoRoot 'src\ToshanVault.App\bin\x64\Debug'),
+    (Join-Path $repoRoot 'tests\ToshanVault.Tests\bin\x64\Release'),
+    (Join-Path $repoRoot 'tests\ToshanVault.Tests\bin\x64\Debug')
+) | Where-Object { Test-Path $_ }
+
+$sqliteDll = $null
+foreach ($dir in $candidateDirs) {
+    $hit = Get-ChildItem $dir -Recurse -Filter 'Microsoft.Data.Sqlite.dll' -EA SilentlyContinue | Select-Object -First 1
+    if ($hit) { $sqliteDll = $hit.FullName; break }
+}
+if (-not $sqliteDll) {
+    throw "Could not find Microsoft.Data.Sqlite.dll. Run 'dotnet build ToshanVault.slnx -c Debug -p:Platform=x64' first."
+}
+$binDir = Split-Path $sqliteDll -Parent
+
+function Resolve-Dll($name) {
+    $p = Join-Path $binDir $name
+    if (Test-Path $p) { return $p }
+    $h = Get-ChildItem $binDir -Recurse -Filter $name -EA SilentlyContinue | Select-Object -First 1
+    if ($h) { return $h.FullName }
+    return $null
+}
+
+$rawCore = Resolve-Dll 'SQLitePCLRaw.core.dll'
+$rawProv = Resolve-Dll 'SQLitePCLRaw.provider.e_sqlite3.dll'
+$rawBatt = Resolve-Dll 'SQLitePCLRaw.batteries_v2.dll'
+$nativeDll = Resolve-Dll 'e_sqlite3.dll'
+if (-not $nativeDll) { throw "Could not find native e_sqlite3.dll under $binDir." }
+
+$env:PATH = "$(Split-Path $nativeDll -Parent);$env:PATH"
+foreach ($d in @($rawCore, $rawProv, $rawBatt, $sqliteDll)) {
+    if ($d) { Add-Type -Path $d }
+}
 [SQLitePCL.Batteries_V2]::Init()
 
 $conn = New-Object Microsoft.Data.Sqlite.SqliteConnection("Data Source=$DbPath")
