@@ -69,7 +69,11 @@ public sealed partial class RecipesPage : Page
 
     private IEnumerable<Recipe> ApplySort(IEnumerable<Recipe> rows)
     {
-        if (_sortKey is null || _sortDir is null) return rows;
+        // Tried recipes always pinned to the top regardless of any column
+        // sort the user picks; the chosen column (if any) becomes the
+        // secondary key within each tried/untried group.
+        var pinned = rows.OrderByDescending(r => r.IsTried);
+        if (_sortKey is null || _sortDir is null) return pinned;
         var asc = _sortDir == DataGridSortDirection.Ascending;
         Func<Recipe, IComparable?> key = _sortKey switch
         {
@@ -81,7 +85,7 @@ public sealed partial class RecipesPage : Page
             "IsFavourite" => r => r.IsFavourite,
             _             => _ => 0,
         };
-        return asc ? rows.OrderBy(key) : rows.OrderByDescending(key);
+        return asc ? pinned.ThenBy(key) : pinned.ThenByDescending(key);
     }
 
     private void Grid_Sorting(object? sender, DataGridColumnEventArgs e)

@@ -70,14 +70,14 @@ public sealed class RecipeRepository
     public async Task<IReadOnlyList<Recipe>> GetAllAsync(CancellationToken ct = default)
     {
         await using var conn = _factory.Open();
-        // Sort: untried first (so they're visible at top), then category
+        // Sort: tried first (user prefers proven recipes at top), then category
         // (Chicken / Egg / Other), then favourite within category, then title.
         var rows = await conn.QueryAsync<Recipe>(new CommandDefinition(
             @"SELECT id, title, author, cuisine, rating, youtube_url,
                      thumbnail_path, notes_md, is_favourite, is_tried,
                      category, added_at
               FROM recipe
-              ORDER BY is_tried ASC, category, is_favourite DESC, title;",
+              ORDER BY is_tried DESC, category, is_favourite DESC, title;",
             cancellationToken: ct)).ConfigureAwait(false);
         return rows.AsList();
     }
