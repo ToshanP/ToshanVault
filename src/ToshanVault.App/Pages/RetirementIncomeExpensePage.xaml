@@ -5,6 +5,15 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:dg="using:CommunityToolkit.WinUI.UI.Controls">
     <ScrollViewer VerticalScrollMode="Auto" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer.Resources>
+            <!-- Right-align numeric DataGrid cells and totals so the dollar
+                 amounts line up on their decimal points. -->
+            <Style x:Key="RightAlignedCell" TargetType="TextBlock">
+                <Setter Property="HorizontalAlignment" Value="Right" />
+                <Setter Property="TextAlignment" Value="Right" />
+                <Setter Property="Padding" Value="0,0,12,0" />
+            </Style>
+        </ScrollViewer.Resources>
         <Grid Padding="24,16,24,24" RowSpacing="16">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -55,8 +64,10 @@
                                  MaxHeight="520">
                         <dg:DataGrid.Columns>
                             <dg:DataGridTextColumn Header="Description" Tag="Label"  Binding="{Binding Label}"           Width="3*" />
-                            <dg:DataGridTextColumn Header="Annual"      Tag="Annual" Binding="{Binding AnnualDisplay}"  Width="*" />
-                            <dg:DataGridTextColumn Header="Weekly"      Tag="Weekly" Binding="{Binding WeeklyDisplay}"  Width="*" />
+                            <dg:DataGridTextColumn Header="Annual"      Tag="Annual" Binding="{Binding AnnualDisplay}"  Width="*"
+                                                   ElementStyle="{StaticResource RightAlignedCell}" />
+                            <dg:DataGridTextColumn Header="Weekly"      Tag="Weekly" Binding="{Binding WeeklyDisplay}"  Width="*"
+                                                   ElementStyle="{StaticResource RightAlignedCell}" />
                         </dg:DataGrid.Columns>
                     </dg:DataGrid>
 
@@ -67,8 +78,10 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Total" />
-                        <TextBlock Grid.Column="1" x:Name="ExpenseAnnualTotal" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                        <TextBlock Grid.Column="2" x:Name="ExpenseWeeklyTotal" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock Grid.Column="1" x:Name="ExpenseAnnualTotal" Style="{StaticResource BodyStrongTextBlockStyle}"
+                                   HorizontalAlignment="Right" TextAlignment="Right" Padding="0,0,12,0" />
+                        <TextBlock Grid.Column="2" x:Name="ExpenseWeeklyTotal" Style="{StaticResource BodyStrongTextBlockStyle}"
+                                   HorizontalAlignment="Right" TextAlignment="Right" Padding="0,0,12,0" />
                     </Grid>
                 </StackPanel>
             </Border>
@@ -105,8 +118,10 @@
                                  MaxHeight="320">
                         <dg:DataGrid.Columns>
                             <dg:DataGridTextColumn Header="Description" Tag="Label"  Binding="{Binding Label}"           Width="3*" />
-                            <dg:DataGridTextColumn Header="Annual"      Tag="Annual" Binding="{Binding AnnualDisplay}"  Width="*" />
-                            <dg:DataGridTextColumn Header="Weekly"      Tag="Weekly" Binding="{Binding WeeklyDisplay}"  Width="*" />
+                            <dg:DataGridTextColumn Header="Annual"      Tag="Annual" Binding="{Binding AnnualDisplay}"  Width="*"
+                                                   ElementStyle="{StaticResource RightAlignedCell}" />
+                            <dg:DataGridTextColumn Header="Weekly"      Tag="Weekly" Binding="{Binding WeeklyDisplay}"  Width="*"
+                                                   ElementStyle="{StaticResource RightAlignedCell}" />
                         </dg:DataGrid.Columns>
                     </dg:DataGrid>
 
@@ -117,8 +132,10 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Total" />
-                        <TextBlock Grid.Column="1" x:Name="IncomeAnnualTotal" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                        <TextBlock Grid.Column="2" x:Name="IncomeWeeklyTotal" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock Grid.Column="1" x:Name="IncomeAnnualTotal" Style="{StaticResource BodyStrongTextBlockStyle}"
+                                   HorizontalAlignment="Right" TextAlignment="Right" Padding="0,0,12,0" />
+                        <TextBlock Grid.Column="2" x:Name="IncomeWeeklyTotal" Style="{StaticResource BodyStrongTextBlockStyle}"
+                                   HorizontalAlignment="Right" TextAlignment="Right" Padding="0,0,12,0" />
                     </Grid>
                 </StackPanel>
             </Border>
@@ -135,8 +152,10 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="SurplusLabel" Style="{StaticResource SubtitleTextBlockStyle}" Text="Surplus (Income − Expense)" />
-                    <TextBlock Grid.Column="1" x:Name="SurplusAnnual" Style="{StaticResource SubtitleTextBlockStyle}" />
-                    <TextBlock Grid.Column="2" x:Name="SurplusWeekly" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <TextBlock Grid.Column="1" x:Name="SurplusAnnual" Style="{StaticResource SubtitleTextBlockStyle}"
+                               HorizontalAlignment="Right" TextAlignment="Right" Padding="0,0,12,0" />
+                    <TextBlock Grid.Column="2" x:Name="SurplusWeekly" Style="{StaticResource SubtitleTextBlockStyle}"
+                               HorizontalAlignment="Right" TextAlignment="Right" Padding="0,0,12,0" />
                 </Grid>
             </Border>
         </Grid>
