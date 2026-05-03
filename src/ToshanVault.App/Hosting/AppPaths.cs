@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 
@@ -66,21 +67,41 @@ public static class AppPaths
     {
         try
         {
-            var path = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
-            if (!File.Exists(path)) return null;
-            using var stream = File.OpenRead(path);
-            using var doc = JsonDocument.Parse(stream, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
-            if (!doc.RootElement.TryGetProperty("Storage", out var storage)) return null;
-            if (!storage.TryGetProperty("DatabaseFilePath", out var prop)) return null;
-            if (prop.ValueKind != JsonValueKind.String) return null;
-            var value = prop.GetString();
-            if (string.IsNullOrWhiteSpace(value)) return null;
-            // Reject relative / non-rooted paths — they break EnsureDataDirectory()
-            // because Path.GetDirectoryName("vault.db") returns "" and
-            // Directory.CreateDirectory("") throws. Fall back to the default
-            // when the user supplies anything that isn't a fully-qualified path.
-            if (!Path.IsPathFullyQualified(value)) return null;
-            return value;
+            // In a single-file self-extracting publish, AppContext.BaseDirectory
+            // points to the temp extraction folder (e.g. %TEMP%\.net\<app>\<hash>),
+            // NOT the directory containing the exe the user actually launched.
+            // Probe the real exe location first via the process main module so a
+            // user-edited appsettings.json placed next to the exe is honoured;
+            // fall back to AppContext.BaseDirectory for non-single-file builds
+            // and unit tests where MainModule may not resolve.
+            var probes = new List<string>(2);
+            try
+            {
+                var exe = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+                if (!string.IsNullOrWhiteSpace(exe))
+                {
+                    var dir = Path.GetDirectoryName(exe);
+                    if (!string.IsNullOrWhiteSpace(dir))
+                        probes.Add(Path.Combine(dir, "appsettings.json"));
+                }
+            }
+            catch { /* MainModule can throw under some hosts; ignore */ }
+            probes.Add(Path.Combine(AppContext.BaseDirectory, "appsettings.json"));
+
+            foreach (var path in probes)
+            {
+                if (!File.Exists(path)) continue;
+                using var stream = File.OpenRead(path);
+                using var doc = JsonDocument.Parse(stream, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+                if (!doc.RootElement.TryGetProperty("Storage", out var storage)) continue;
+                if (!storage.TryGetProperty("DatabaseFilePath", out var prop)) continue;
+                if (prop.ValueKind != JsonValueKind.String) continue;
+                var value = prop.GetString();
+                if (string.IsNullOrWhiteSpace(value)) continue;
+                if (!Path.IsPathFullyQualified(value)) continue;
+                return value;
+            }
+            return null;
         }
         catch
         {
