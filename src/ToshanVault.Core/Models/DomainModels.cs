@@ -206,6 +206,7 @@ public sealed class Attachment
     public const string KindBankAccount = "bank_account";
     public const string KindVaultEntry  = "vault_entry";
     public const string KindInsurance   = "insurance";
+    public const string KindGeneralNote = "general_note";
 
     public long Id { get; set; }
     public string TargetKind { get; set; } = string.Empty;

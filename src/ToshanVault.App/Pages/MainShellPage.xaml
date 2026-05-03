@@ -38,6 +38,9 @@
             <NavigationViewItem Content="Recipes" Tag="recipes">
                 <NavigationViewItem.Icon><FontIcon Glyph="&#xE7C3;" /></NavigationViewItem.Icon>
             </NavigationViewItem>
+            <NavigationViewItem Content="General Notes" Tag="notes">
+                <NavigationViewItem.Icon><FontIcon Glyph="&#xE70B;" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
         </NavigationView.MenuItems>
         <NavigationView.FooterMenuItems>
             <NavigationViewItem Content="Lock" Tag="lock">

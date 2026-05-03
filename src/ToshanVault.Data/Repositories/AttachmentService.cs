@@ -188,7 +188,8 @@ public sealed class AttachmentService
     {
         if (targetKind != Attachment.KindBankAccount
             && targetKind != Attachment.KindVaultEntry
-            && targetKind != Attachment.KindInsurance)
+            && targetKind != Attachment.KindInsurance
+            && targetKind != Attachment.KindGeneralNote)
             throw new ArgumentException($"Unknown target kind '{targetKind}'.", nameof(targetKind));
     }
 }
