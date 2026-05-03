@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 using ToshanVault.Core.Models;
 using ToshanVault.Core.Security;
@@ -21,20 +24,37 @@ public sealed partial class VaultPage : Page
     private readonly AttachmentService _attachments = AppHost.GetService<AttachmentService>();
     private readonly NavigationService _nav = AppHost.GetService<NavigationService>();
 
-    private readonly ObservableCollection<WebEntryVm> _entries = new();
+    // Source of truth (unfiltered, all entries from DB) — used to recompute
+    // groups whenever the search filter changes and to power the Category
+    // autocomplete in the entry dialog.
     private readonly List<WebEntryVm> _allEntries = new();
+
+    // Bound to the page's ItemsControl — one VM per visible category, in
+    // display order (alphabetical with "(Uncategorised)" pinned last).
+    private readonly ObservableCollection<VaultGroupVm> _groups = new();
+
+    private readonly VaultUiStatePersister _uiState = new();
+    private HashSet<string> _collapsed = new(StringComparer.OrdinalIgnoreCase);
+
     private string _filter = string.Empty;
     private bool _busy;
+
+    private const string UncategorisedDisplay = "(Uncategorised)";
+    private const string UncategorisedKey = "";
 
     public VaultPage()
     {
         InitializeComponent();
-        EntryList.ItemsSource = _entries;
+        GroupList.ItemsSource = _groups;
     }
 
     protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
-        try { await ReloadAsync(); }
+        try
+        {
+            _collapsed = _uiState.LoadCollapsedGroups();
+            await ReloadAsync();
+        }
         catch (VaultLockedException) { _nav.NavigateToLogin(); }
         catch (Exception ex) { ShowError(ex.Message); }
     }
@@ -61,16 +81,10 @@ public sealed partial class VaultPage : Page
             }
             catch (VaultLockedException)
             {
-                // Vault was locked between page nav and reload — propagate so
-                // the navigation host can route back to login. There is no
-                // useful tile to show without the DEK.
                 throw;
             }
             catch (Exception ex)
             {
-                // One bad row (e.g. crypto tag mismatch on a tampered field)
-                // shouldn't blank the whole list. Surface via InfoBar so the
-                // user knows something is off, but keep going.
                 ShowError($"Could not preview entry #{r.Id}: {ex.Message}");
             }
             _allEntries.Add(new WebEntryVm(r, number, website));
@@ -80,20 +94,87 @@ public sealed partial class VaultPage : Page
 
     private void ApplyFilter()
     {
-        _entries.Clear();
         var f = _filter;
-        foreach (var vm in _allEntries)
-        {
-            if (string.IsNullOrEmpty(f)
-                || vm.Name.Contains(f, StringComparison.OrdinalIgnoreCase)
-                || vm.Subtitle.Contains(f, StringComparison.OrdinalIgnoreCase)
-                || (vm.Number  is { Length: > 0 } n && n.Contains(f, StringComparison.OrdinalIgnoreCase))
-                || (vm.Website is { Length: > 0 } w && w.Contains(f, StringComparison.OrdinalIgnoreCase)))
+        bool Matches(WebEntryVm vm) =>
+            string.IsNullOrEmpty(f)
+            || vm.Name.Contains(f, StringComparison.OrdinalIgnoreCase)
+            || vm.Subtitle.Contains(f, StringComparison.OrdinalIgnoreCase)
+            || (vm.Number  is { Length: > 0 } n && n.Contains(f, StringComparison.OrdinalIgnoreCase))
+            || (vm.Website is { Length: > 0 } w && w.Contains(f, StringComparison.OrdinalIgnoreCase));
+
+        // Group by trimmed-lowercase Category. Display name = the most common
+        // casing actually used (or first-seen) so renames mid-stream don't
+        // surprise the user with a different banner label.
+        var groupSpecs = _allEntries
+            .Where(Matches)
+            .GroupBy(vm => NormalizeKey(vm.Category))
+            .Select(g =>
             {
-                _entries.Add(vm);
+                var key = g.Key;
+                var display = key == UncategorisedKey
+                    ? UncategorisedDisplay
+                    : (g.GroupBy(vm => vm.Category!.Trim())
+                        .OrderByDescending(c => c.Count())
+                        .First().Key);
+                // Order entries within a group by their persisted SortOrder
+                // so drag-drop reorder is honoured. SortOrder is global, but
+                // since we only allow within-group drag, the relative order
+                // within any one group is what the user set.
+                var ordered = g.OrderBy(vm => vm.SortOrder).ThenBy(vm => vm.Id).ToList();
+                return (Key: key, Display: display, Entries: ordered);
+            })
+            // Alphabetical groups, "(Uncategorised)" pinned last so the user
+            // sees their organised buckets first and the catch-all at bottom.
+            .OrderBy(g => g.Key == UncategorisedKey)
+            .ThenBy(g => g.Display, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // Reconcile against existing _groups so we preserve VM identity (and
+        // hence Expander state) when only entry contents change. Full clear
+        // would also work but causes the ItemsControl to rebuild every tile
+        // visual on every keystroke in the search box.
+        var existingByKey = _groups.ToDictionary(g => g.NormalizedKey, StringComparer.OrdinalIgnoreCase);
+        _groups.Clear();
+        foreach (var spec in groupSpecs)
+        {
+            if (existingByKey.TryGetValue(spec.Key, out var existing))
+            {
+                existing.UpdateEntries(spec.Entries);
+                existing.DisplayName = spec.Display;
+                _groups.Add(existing);
+            }
+            else
+            {
+                var vm = new VaultGroupVm(
+                    normalizedKey: spec.Key,
+                    displayName: spec.Display,
+                    headerBrush: CategoryColorPalette.BrushFor(spec.Key == UncategorisedKey ? null : spec.Display),
+                    isExpanded: !_collapsed.Contains(spec.Key));
+                vm.UpdateEntries(spec.Entries);
+                vm.ExpansionChanged += OnGroupExpansionChanged;
+                _groups.Add(vm);
             }
         }
     }
+
+    private static string NormalizeKey(string? category) =>
+        string.IsNullOrWhiteSpace(category) ? UncategorisedKey : category.Trim().ToLowerInvariant();
+
+    private void OnGroupExpansionChanged(VaultGroupVm vm)
+    {
+        if (vm.IsExpanded) _collapsed.Remove(vm.NormalizedKey);
+        else _collapsed.Add(vm.NormalizedKey);
+        _uiState.SaveCollapsedGroups(_collapsed);
+    }
+
+    private IReadOnlyList<string> KnownCategories() =>
+        _allEntries
+            .Select(e => e.Category)
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Select(c => c!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
     private void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
@@ -101,20 +182,40 @@ public sealed partial class VaultPage : Page
         ApplyFilter();
     }
 
+    // ---- Header tap / add-in-group ----------------------------------------
+    private void GroupHeader_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.DataContext is VaultGroupVm vm)
+        {
+            vm.IsExpanded = !vm.IsExpanded;
+            e.Handled = true;
+        }
+    }
+
+    private async void AddInGroup_Click(object sender, RoutedEventArgs e)
+    {
+        // Sender Tag carries the display name so we can prefill the dialog
+        // with the group's category. Empty/Uncategorised → no prefill.
+        var display = (sender as Button)?.Tag as string;
+        var prefill = string.Equals(display, UncategorisedDisplay, StringComparison.Ordinal) ? null : display;
+        await AddEntryCoreAsync(prefill);
+    }
+
     // ---- Add ---------------------------------------------------------------
-    private async void AddEntry_Click(object sender, RoutedEventArgs e)
+    private async void AddEntry_Click(object sender, RoutedEventArgs e) => await AddEntryCoreAsync(null);
+
+    private async Task AddEntryCoreAsync(string? prefillCategory)
     {
         if (_busy) return; _busy = true;
         try
         {
-            var dlg = new VaultEntryDialog(this.XamlRoot, null, null, null, null);
+            var dlg = new VaultEntryDialog(this.XamlRoot, null, null, null, null, null, KnownCategories());
+            if (prefillCategory is not null) dlg.PrefillCategory(prefillCategory);
             if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
 
             var entry = dlg.Result!;
             var entryId = await _entryRepo.InsertAsync(entry);
 
-            // Persist the encrypted-but-displayed-plain fields tied to this new
-            // entry. Empty values are skipped by the service (no field row).
             await _credService.SaveAsync(entryId, BuildEntryFieldSpecs(
                 dlg.NumberValue, dlg.WebsiteValue, dlg.AdditionalDetailsValue));
 
@@ -140,7 +241,8 @@ public sealed partial class VaultPage : Page
                 loaded.GetValueOrDefault(WebCredentialsService.NumberLabel),
                 loaded.GetValueOrDefault(WebCredentialsService.WebsiteLabel),
                 loaded.GetValueOrDefault(WebCredentialsService.AdditionalDetailsLabel),
-                _attachments);
+                _attachments,
+                KnownCategories());
             if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
 
             await _entryRepo.UpdateAsync(dlg.Result!);
@@ -199,9 +301,6 @@ public sealed partial class VaultPage : Page
         catch (Exception ex) { ShowError(ex.Message); }
         finally
         {
-            // Best-effort plaintext lifetime reduction; PasswordBox.Password is a
-            // managed string we can't truly zero, but null the references so GC
-            // can reclaim them sooner.
             if (creds is not null)
             {
                 creds.Username = creds.Password = string.Empty;
@@ -269,8 +368,15 @@ public sealed partial class VaultPage : Page
         InfoBar.IsOpen = true;
     }
 
-    // ---- Drag & drop reordering -------------------------------------------
-    private async void EntryList_DragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs args)
+    // ---- Drag & drop reordering (within-group only) -----------------------
+    //
+    // Each group's inner GridView calls back here when its items have been
+    // reordered. We rebuild a global SortOrder by walking *all* groups in
+    // their current display order and concatenating each group's current
+    // entry IDs. This keeps the global ordering coherent (no cross-group
+    // ID interleaving), which matters when filter is removed and SortOrder
+    // is re-read on next load.
+    private async void GroupGrid_DragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs args)
     {
         try
         {
@@ -280,9 +386,21 @@ public sealed partial class VaultPage : Page
                 await ReloadAsync();
                 return;
             }
+
+            var orderedIds = _groups.SelectMany(g => g.Entries.Select(e => e.Id)).ToList();
+            await _entryRepo.UpdateSortOrderAsync(orderedIds);
+
+            // Mirror the new order into _allEntries so the next ApplyFilter()
+            // (e.g. user starts typing in search) picks up the new sort
+            // without re-hitting the DB. SortOrder on the VM is updated
+            // implicitly by writing through the same numeric order.
+            var rank = 0;
+            foreach (var g in _groups)
+                foreach (var entry in g.Entries)
+                    entry.SortOrder = rank++;
+            // Rebuild _allEntries in the new order.
             _allEntries.Clear();
-            _allEntries.AddRange(_entries);
-            await _entryRepo.UpdateSortOrderAsync(_entries.Select(v => v.Id).ToList());
+            _allEntries.AddRange(_groups.SelectMany(g => g.Entries));
         }
         catch (Exception ex)
         {
@@ -292,6 +410,59 @@ public sealed partial class VaultPage : Page
     }
 }
 
+// ---------------------------------------------------------------------------
+// VM for one Category banner. INotifyPropertyChanged so the chevron glyph
+// and body Visibility update in-place when the user toggles the header
+// without forcing the whole ItemsControl to rebuild.
+// ---------------------------------------------------------------------------
+internal sealed class VaultGroupVm : INotifyPropertyChanged
+{
+    public event PropertyChangedEventHandler? PropertyChanged;
+    public event Action<VaultGroupVm>? ExpansionChanged;
+
+    public string NormalizedKey { get; }
+    public string DisplayName { get; set; }
+    public Brush HeaderBrush { get; }
+    public ObservableCollection<WebEntryVm> Entries { get; } = new();
+
+    private bool _isExpanded;
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set
+        {
+            if (_isExpanded == value) return;
+            _isExpanded = value;
+            Raise(nameof(IsExpanded));
+            Raise(nameof(BodyVisibility));
+            Raise(nameof(ChevronGlyph));
+            ExpansionChanged?.Invoke(this);
+        }
+    }
+
+    public Visibility BodyVisibility => _isExpanded ? Visibility.Visible : Visibility.Collapsed;
+    // Segoe Fluent Icons: ChevronDown (E70D) when open, ChevronRight (E76C) when closed.
+    public string ChevronGlyph => _isExpanded ? "\uE70D" : "\uE76C";
+    public string CountLabel => Entries.Count == 1 ? "1 entry" : $"{Entries.Count} entries";
+
+    public VaultGroupVm(string normalizedKey, string displayName, Brush headerBrush, bool isExpanded)
+    {
+        NormalizedKey = normalizedKey;
+        DisplayName = displayName;
+        HeaderBrush = headerBrush;
+        _isExpanded = isExpanded;
+    }
+
+    public void UpdateEntries(IEnumerable<WebEntryVm> entries)
+    {
+        Entries.Clear();
+        foreach (var e in entries) Entries.Add(e);
+        Raise(nameof(CountLabel));
+    }
+
+    private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
+
 public sealed class WebEntryVm
 {
     public WebEntryVm(VaultEntry e, string? number = null, string? website = null)
@@ -299,6 +470,8 @@ public sealed class WebEntryVm
         Id = e.Id;
         Name = e.Name;
         Subtitle = string.IsNullOrWhiteSpace(e.Owner) ? "(no owner)" : e.Owner!;
+        Category = e.Category;
+        SortOrder = e.SortOrder;
         Number = number;
         Website = website;
         // Visibility helpers — XAML can't easily collapse on null/empty without
@@ -311,6 +484,8 @@ public sealed class WebEntryVm
     public long Id { get; }
     public string Name { get; }
     public string Subtitle { get; }
+    public string? Category { get; }
+    public int SortOrder { get; set; }
     public string? Number { get; }
     public string? Website { get; }
     public bool HasNumber { get; }

@@ -33,57 +33,125 @@
 
         <InfoBar x:Name="InfoBar" Grid.Row="2" IsClosable="True" IsOpen="False" />
 
-        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
-            <GridView x:Name="EntryList" SelectionMode="None" IsItemClickEnabled="False"
-                      CanReorderItems="True" CanDragItems="True" AllowDrop="True"
-                      DragItemsCompleted="EntryList_DragItemsCompleted">
-                <GridView.ItemContainerStyle>
-                    <Style TargetType="GridViewItem">
-                        <Setter Property="Margin" Value="0,0,8,8" />
-                    </Style>
-                </GridView.ItemContainerStyle>
-                <GridView.ItemTemplate>
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" Padding="0,0,8,0">
+            <ItemsControl x:Name="GroupList">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="14" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderThickness="1" CornerRadius="6"
-                                Padding="12" Width="260" Height="170">
-                            <Grid RowSpacing="6">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="*" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <StackPanel Grid.Row="0" Spacing="2">
-                                    <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}"
-                                               TextTrimming="CharacterEllipsis"
-                                               Text="{Binding Name}" />
-                                    <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                               Text="{Binding Subtitle}" />
-                                </StackPanel>
-                                <StackPanel Grid.Row="1" Spacing="2" VerticalAlignment="Top" Margin="0,4,0,0">
-                                    <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                               TextTrimming="CharacterEllipsis"
-                                               Visibility="{Binding NumberVisibility}"
-                                               Text="{Binding Number}" />
-                                    <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                               TextTrimming="CharacterEllipsis"
-                                               Visibility="{Binding WebsiteVisibility}"
-                                               Text="{Binding Website}" />
-                                </StackPanel>
-                                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4">
-                                    <Button Content="Edit" Click="Edit_Click" Tag="{Binding Id}" />
-                                    <Button Content="Login" Click="Credentials_Click" Tag="{Binding Id}" />
-                                    <Button Content="Del" Click="Delete_Click" Tag="{Binding Id}" />
-                                </StackPanel>
-                            </Grid>
-                        </Border>
+                        <StackPanel Spacing="0">
+                            <!-- Coloured banner header. Tapping it toggles
+                                 IsExpanded on the group VM (which persists
+                                 the new state and updates BodyVisibility +
+                                 ChevronGlyph through INotifyPropertyChanged). -->
+                            <Border Background="{Binding HeaderBrush}"
+                                    CornerRadius="6,6,0,0"
+                                    Padding="14,10"
+                                    Tapped="GroupHeader_Tapped"
+                                    Tag="{Binding NormalizedKey}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <FontIcon Glyph="{Binding ChevronGlyph}"
+                                              FontFamily="Segoe Fluent Icons"
+                                              FontSize="12"
+                                              Foreground="White"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,10,0" />
+                                    <TextBlock Grid.Column="1"
+                                               Foreground="White"
+                                               FontWeight="SemiBold"
+                                               FontSize="15"
+                                               VerticalAlignment="Center"
+                                               Text="{Binding DisplayName}" />
+                                    <TextBlock Grid.Column="2"
+                                               Foreground="White"
+                                               Opacity="0.75"
+                                               Margin="8,0,12,0"
+                                               VerticalAlignment="Center"
+                                               Text="{Binding CountLabel}" />
+                                    <Button Grid.Column="3"
+                                            Content="+ Add"
+                                            Click="AddInGroup_Click"
+                                            Tag="{Binding DisplayName}"
+                                            Background="Transparent"
+                                            BorderBrush="White"
+                                            Foreground="White" />
+                                </Grid>
+                            </Border>
+                            <!-- Body: only rendered when expanded. -->
+                            <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1,0,1,1"
+                                    CornerRadius="0,0,6,6"
+                                    Padding="8"
+                                    Visibility="{Binding BodyVisibility}">
+                                <GridView ItemsSource="{Binding Entries}"
+                                          SelectionMode="None"
+                                          IsItemClickEnabled="False"
+                                          CanReorderItems="True"
+                                          CanDragItems="True"
+                                          AllowDrop="True"
+                                          DragItemsCompleted="GroupGrid_DragItemsCompleted"
+                                          Tag="{Binding NormalizedKey}">
+                                    <GridView.ItemContainerStyle>
+                                        <Style TargetType="GridViewItem">
+                                            <Setter Property="Margin" Value="0,0,8,8" />
+                                        </Style>
+                                    </GridView.ItemContainerStyle>
+                                    <GridView.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                                    BorderThickness="1" CornerRadius="6"
+                                                    Padding="12" Width="260" Height="170">
+                                                <Grid RowSpacing="6">
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="*" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
+                                                    <StackPanel Grid.Row="0" Spacing="2">
+                                                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Text="{Binding Name}" />
+                                                        <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
+                                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                                   Text="{Binding Subtitle}" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Row="1" Spacing="2" VerticalAlignment="Top" Margin="0,4,0,0">
+                                                        <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
+                                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Visibility="{Binding NumberVisibility}"
+                                                                   Text="{Binding Number}" />
+                                                        <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
+                                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Visibility="{Binding WebsiteVisibility}"
+                                                                   Text="{Binding Website}" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4">
+                                                        <Button Content="Edit" Click="Edit_Click" Tag="{Binding Id}" />
+                                                        <Button Content="Login" Click="Credentials_Click" Tag="{Binding Id}" />
+                                                        <Button Content="Del" Click="Delete_Click" Tag="{Binding Id}" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </GridView.ItemTemplate>
+                                </GridView>
+                            </Border>
+                        </StackPanel>
                     </DataTemplate>
-                </GridView.ItemTemplate>
-            </GridView>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
         </ScrollViewer>
     </Grid>
 </Page>

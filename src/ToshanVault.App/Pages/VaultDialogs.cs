@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -27,6 +28,7 @@ internal sealed class VaultEntryDialog : ContentDialog
     private readonly TextBox _name, _number, _website;
     private readonly RichNotesField _additional;
     private readonly ComboBox _owner;
+    private readonly AutoSuggestBox _category;
     private readonly TextBlock _err;
 
     public VaultEntryDialog(
@@ -35,7 +37,8 @@ internal sealed class VaultEntryDialog : ContentDialog
         string? initialNumber,
         string? initialWebsite,
         string? initialAdditionalDetails,
-        AttachmentService? attachments = null)
+        AttachmentService? attachments = null,
+        IReadOnlyList<string>? existingCategories = null)
     {
         XamlRoot = root;
         _existing = existing;
@@ -65,11 +68,36 @@ internal sealed class VaultEntryDialog : ContentDialog
             ? existing!.Owner!
             : OwnerOptions[0];
 
+        // Free-text Category with autocomplete from existing categories so
+        // users naturally re-use group names rather than creating one-off
+        // typos that would split a group into two banners.
+        _category = new AutoSuggestBox
+        {
+            Header = "Category (optional, used to group entries on the Vault page)",
+            PlaceholderText = "e.g. Government, Banking, Pets",
+            Text = existing?.Category ?? string.Empty,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            QueryIcon = new SymbolIcon(Symbol.Tag),
+        };
+        if (existingCategories is { Count: > 0 })
+        {
+            _category.ItemsSource = existingCategories;
+            _category.TextChanged += (s, e) =>
+            {
+                if (e.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
+                var q = (s.Text ?? string.Empty).Trim();
+                s.ItemsSource = q.Length == 0
+                    ? existingCategories
+                    : existingCategories.Where(c => c.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+            };
+        }
+
         _err = new TextBlock { Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"] };
 
         var panel = new StackPanel { Spacing = 8, Width = 560 };
         panel.Children.Add(_name);
         panel.Children.Add(_owner);
+        panel.Children.Add(_category);
         panel.Children.Add(_number);
         panel.Children.Add(_website);
         panel.Children.Add(_additional.Container);
@@ -96,6 +124,9 @@ internal sealed class VaultEntryDialog : ContentDialog
         PrimaryButtonClick += OnSave;
     }
 
+    /// <summary>Prefill the Category field (used by per-group "+ Add" buttons).</summary>
+    public void PrefillCategory(string category) => _category.Text = category ?? string.Empty;
+
     private void OnSave(ContentDialog sender, ContentDialogButtonClickEventArgs args)
     {
         var name = _name.Text.Trim();
@@ -109,6 +140,7 @@ internal sealed class VaultEntryDialog : ContentDialog
         Result = _existing ?? new VaultEntry { Kind = WebCredentialsService.EntryKind };
         Result.Name = name;
         Result.Owner = (string?)_owner.SelectedItem;
+        Result.Category = N(_category.Text);
         NumberValue = N(_number.Text);
         WebsiteValue = N(_website.Text);
         AdditionalDetailsValue = _additional.GetValue();
