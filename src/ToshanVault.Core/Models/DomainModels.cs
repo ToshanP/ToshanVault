@@ -102,6 +102,7 @@ public sealed class VaultEntry
     public string? Category { get; set; }
     public string? Tags { get; set; }
     public string? Owner { get; set; }
+    public int SortOrder { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
@@ -174,6 +175,7 @@ public sealed class BankAccount
     /// column is no longer written by app code (kept readable for backups
     /// and the Toshan back-fill done in migration 006).</summary>
     public long? VaultEntryId { get; set; }
+    public int SortOrder { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }

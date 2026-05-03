@@ -32,17 +32,29 @@ public sealed class BankAccountRepository
         a.UpdatedAt = DateTimeOffset.UtcNow;
 
         await using var conn = _factory.Open();
+        // Append new accounts at the end of the relevant section by giving them
+        // the largest sort_order seen so far + 1. (Open and Closed share one
+        // sequence — sort_order is unique per row but the WHERE filter on
+        // is_closed slices the lists at read time.)
+        if (a.SortOrder == 0)
+        {
+            var maxOrder = await conn.ExecuteScalarAsync<long?>(new CommandDefinition(
+                "SELECT MAX(sort_order) FROM bank_account;",
+                cancellationToken: ct)).ConfigureAwait(false) ?? 0;
+            a.SortOrder = (int)Math.Min(int.MaxValue, maxOrder + 1);
+        }
+
         var id = await conn.ExecuteScalarAsync<long>(new CommandDefinition(
             @"INSERT INTO bank_account
                 (bank, account_name, bsb, ifsc_code, account_number, account_type,
                  holder_name, interest_rate_pct, notes, website,
                  is_closed, closed_date, close_reason,
-                 vault_entry_id, created_at, updated_at)
+                 vault_entry_id, sort_order, created_at, updated_at)
               VALUES
                 (@Bank, @AccountName, @Bsb, @IfscCode, @AccountNumber, @AccountType,
                  @HolderName, @InterestRatePct, @Notes, @Website,
                  @IsClosed, @ClosedDate, @CloseReason,
-                 @VaultEntryId, @CreatedAt, @UpdatedAt);
+                 @VaultEntryId, @SortOrder, @CreatedAt, @UpdatedAt);
               SELECT last_insert_rowid();",
             new
             {
@@ -60,6 +72,7 @@ public sealed class BankAccountRepository
                 a.ClosedDate,
                 a.CloseReason,
                 a.VaultEntryId,
+                a.SortOrder,
                 a.CreatedAt,
                 a.UpdatedAt,
             },
@@ -147,7 +160,7 @@ public sealed class BankAccountRepository
     {
         await using var conn = _factory.Open();
         var rows = await conn.QueryAsync<BankAccount>(new CommandDefinition(
-            SelectColumns + " WHERE is_closed=0 ORDER BY bank, account_name;",
+            SelectColumns + " WHERE is_closed=0 ORDER BY sort_order, id;",
             cancellationToken: ct)).ConfigureAwait(false);
         return rows.AsList();
     }
@@ -156,7 +169,7 @@ public sealed class BankAccountRepository
     {
         await using var conn = _factory.Open();
         var rows = await conn.QueryAsync<BankAccount>(new CommandDefinition(
-            SelectColumns + " ORDER BY is_closed, bank, account_name;",
+            SelectColumns + " ORDER BY is_closed, sort_order, id;",
             cancellationToken: ct)).ConfigureAwait(false);
         return rows.AsList();
     }
@@ -165,15 +178,40 @@ public sealed class BankAccountRepository
     {
         await using var conn = _factory.Open();
         var rows = await conn.QueryAsync<BankAccount>(new CommandDefinition(
-            SelectColumns + " WHERE is_closed=1 ORDER BY closed_date DESC, bank;",
+            SelectColumns + " WHERE is_closed=1 ORDER BY sort_order, id;",
             cancellationToken: ct)).ConfigureAwait(false);
         return rows.AsList();
+    }
+
+    /// <summary>
+    /// Persists the user-controlled order of accounts within a slice (Open or
+    /// Closed). The caller passes the IDs in the order they should appear; this
+    /// method assigns sort_order = index (1-based) in a single transaction so
+    /// the ordering is atomic and a partial failure leaves no half-applied state.
+    /// IDs not in the input list are NOT touched, allowing the Open and Closed
+    /// lists to be reordered independently.
+    /// </summary>
+    public async Task UpdateSortOrderAsync(IReadOnlyList<long> orderedIds, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(orderedIds);
+        if (orderedIds.Count == 0) return;
+        await using var conn = _factory.Open();
+        await using var tx = (SqliteTransaction)await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
+        var stamp = DateTimeOffset.UtcNow;
+        for (var i = 0; i < orderedIds.Count; i++)
+        {
+            await conn.ExecuteAsync(new CommandDefinition(
+                "UPDATE bank_account SET sort_order=@order, updated_at=@stamp WHERE id=@id;",
+                new { order = i + 1, stamp, id = orderedIds[i] },
+                tx, cancellationToken: ct)).ConfigureAwait(false);
+        }
+        await tx.CommitAsync(ct).ConfigureAwait(false);
     }
 
     private const string SelectColumns =
         @"SELECT id, bank, account_name, bsb, ifsc_code, account_number, account_type,
                  holder_name, interest_rate_pct, notes, website,
                  is_closed, closed_date, close_reason,
-                 vault_entry_id, created_at, updated_at
+                 vault_entry_id, sort_order, created_at, updated_at
             FROM bank_account";
 }

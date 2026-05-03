@@ -154,4 +154,41 @@ public class BankAccountRepositoryTests
         var act2 = async () => await repo.InsertAsync(new BankAccount { Bank = "ANZ", AccountName = "", AccountType = BankAccountType.Other });
         await act2.Should().ThrowAsync<ArgumentException>();
     }
+
+    [TestMethod]
+    public async Task UpdateSortOrder_PersistsOrder_AndRespectsOrderingInGet()
+    {
+        using var f = await TestDbFactory.CreateMigratedAsync();
+        var repo = new BankAccountRepository(f);
+
+        var a = Sample("ANZ", "A"); await repo.InsertAsync(a);
+        var b = Sample("CBA", "B"); await repo.InsertAsync(b);
+        var c = Sample("WBC", "C"); await repo.InsertAsync(c);
+
+        // New order: c, a, b
+        await repo.UpdateSortOrderAsync(new[] { c.Id, a.Id, b.Id });
+
+        var open = await repo.GetActiveAsync();
+        open.Select(x => x.Id).Should().Equal(new[] { c.Id, a.Id, b.Id });
+    }
+
+    [TestMethod]
+    public async Task UpdateSortOrder_LeavesUnlistedRowsAlone()
+    {
+        using var f = await TestDbFactory.CreateMigratedAsync();
+        var repo = new BankAccountRepository(f);
+
+        var a = Sample("ANZ", "A"); await repo.InsertAsync(a);
+        var b = Sample("CBA", "B"); await repo.InsertAsync(b);
+        var c = Sample("WBC", "C"); await repo.InsertAsync(c);
+        await repo.CloseAsync(c.Id, "done", DateTimeOffset.UtcNow);
+
+        // Reorder only the open list. Closed item must keep its slot.
+        await repo.UpdateSortOrderAsync(new[] { b.Id, a.Id });
+
+        var open = await repo.GetActiveAsync();
+        open.Select(x => x.Id).Should().Equal(new[] { b.Id, a.Id });
+        var closed = await repo.GetClosedAsync();
+        closed.Single().Id.Should().Be(c.Id);
+    }
 }

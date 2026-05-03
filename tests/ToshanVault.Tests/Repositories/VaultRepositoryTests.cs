@@ -141,4 +141,27 @@ public class VaultRepositoryTests
         cmd.Parameters.AddWithValue("$id", fieldId);
         return (byte[])(await cmd.ExecuteScalarAsync())!;
     }
+
+    [TestMethod]
+    public async Task VaultEntry_UpdateSortOrder_PersistsOrder_AndIsKindAware()
+    {
+        var (f, vault) = await SetupAsync();
+        using var _ = f;
+        using var __ = vault;
+        var repo = new VaultEntryRepository(f);
+
+        var a = new VaultEntry { Kind = "Web", Name = "A" }; await repo.InsertAsync(a);
+        var b = new VaultEntry { Kind = "Web", Name = "B" }; await repo.InsertAsync(b);
+        var c = new VaultEntry { Kind = "Web", Name = "C" }; await repo.InsertAsync(c);
+        var other = new VaultEntry { Kind = "Login", Name = "Z" }; await repo.InsertAsync(other);
+        var otherSortBefore = (await repo.GetAsync(other.Id))!.SortOrder;
+
+        await repo.UpdateSortOrderAsync(new[] { c.Id, a.Id, b.Id });
+
+        var web = await repo.GetByKindAsync("Web");
+        web.Select(x => x.Id).Should().Equal(new[] { c.Id, a.Id, b.Id });
+
+        // Untouched entry of a different kind keeps its sort_order.
+        (await repo.GetAsync(other.Id))!.SortOrder.Should().Be(otherSortBefore);
+    }
 }

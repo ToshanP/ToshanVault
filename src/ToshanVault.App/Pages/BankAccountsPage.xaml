@@ -31,7 +31,9 @@
         <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="16">
                 <GridView x:Name="OpenList" SelectionMode="None"
-                          IsItemClickEnabled="False">
+                          IsItemClickEnabled="False"
+                          CanReorderItems="True" CanDragItems="True" AllowDrop="True"
+                          DragItemsCompleted="OpenList_DragItemsCompleted">
                     <GridView.ItemContainerStyle>
                         <Style TargetType="GridViewItem">
                             <Setter Property="Margin" Value="0,0,8,8" />
@@ -109,6 +111,8 @@
                     </Expander.Header>
                     <GridView x:Name="ClosedList" SelectionMode="None"
                               IsItemClickEnabled="False"
+                              CanReorderItems="True" CanDragItems="True" AllowDrop="True"
+                              DragItemsCompleted="ClosedList_DragItemsCompleted"
                               Foreground="{ThemeResource TextFillColorDisabledBrush}">
                         <GridView.ItemContainerStyle>
                             <Style TargetType="GridViewItem">

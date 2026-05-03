@@ -287,6 +287,47 @@ public sealed partial class BankAccountsPage : Page
         InfoBar.Message = msg;
         InfoBar.IsOpen = true;
     }
+
+    // ---- Drag & drop reordering -------------------------------------------
+    // Persists the new order back to the DB after the user drops a tile.
+    // Reordering is disabled while a search filter is active because the
+    // visible subset is not the full list and overwriting sort_order with
+    // partial-list indices would scramble hidden rows.
+    private async void OpenList_DragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs args)
+    {
+        if (!string.IsNullOrEmpty(_filter))
+        {
+            ShowError("Clear the search box before reordering.");
+            await ReloadAsync();
+            return;
+        }
+        try
+        {
+            // Reflect the new order back into _allOpen so subsequent filter
+            // toggles see the user's chosen order.
+            _allOpen.Clear();
+            _allOpen.AddRange(_open);
+            await _bankRepo.UpdateSortOrderAsync(_open.Select(v => v.Id).ToList());
+        }
+        catch (Exception ex) { ShowError($"Could not save order: {ex.Message}"); await ReloadAsync(); }
+    }
+
+    private async void ClosedList_DragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs args)
+    {
+        if (!string.IsNullOrEmpty(_filter))
+        {
+            ShowError("Clear the search box before reordering.");
+            await ReloadAsync();
+            return;
+        }
+        try
+        {
+            _allClosed.Clear();
+            _allClosed.AddRange(_closed);
+            await _bankRepo.UpdateSortOrderAsync(_closed.Select(v => v.Id).ToList());
+        }
+        catch (Exception ex) { ShowError($"Could not save order: {ex.Message}"); await ReloadAsync(); }
+    }
 }
 
 // ---------------------------------------------------------------------------
