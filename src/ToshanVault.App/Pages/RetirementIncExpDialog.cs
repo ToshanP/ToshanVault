@@ -22,6 +22,7 @@ internal sealed class RetirementIncExpDialog : ContentDialog
     private readonly TextBlock _err;
     private readonly RetirementItem _editing;
     private readonly bool _isNew;
+    private readonly bool _isIncomeWeekly;
 
     public RetirementIncExpDialog(XamlRoot root, RetirementKind kind, RetirementItem? existing)
     {
@@ -42,24 +43,30 @@ internal sealed class RetirementIncExpDialog : ContentDialog
         _label = new TextBox
         {
             Header = "Description",
-            PlaceholderText = "e.g. Council, Redbank Plains rent",
+            PlaceholderText = kind == RetirementKind.Income
+                ? "e.g. Redbank Plains, Pimpama"
+                : "e.g. Council, Health Insurance",
             Text = _editing.Label,
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
 
+        // Income is captured as weekly rent (52 weeks/year is the convention
+        // already used for the totals row); Expense is captured as annual.
+        // In both cases we round-trip through monthly_amount_jan2025 in the
+        // schema, so no migration is needed.
+        var isIncome = kind == RetirementKind.Income;
+        var annual   = _editing.MonthlyAmountJan2025 * 12.0;
         _annual = new NumberBox
         {
-            Header = "Annual amount (AUD)",
+            Header = isIncome ? "Weekly rent (AUD)" : "Annual amount (AUD)",
             Minimum = 0,
-            SmallChange = 100,
-            LargeChange = 1000,
+            SmallChange = isIncome ? 10 : 100,
+            LargeChange = isIncome ? 100 : 1000,
             SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact,
-            // Editing pre-fills from existing monthly × 12; new dialog starts
-            // at 0 so accidental Save with no input creates an obviously-wrong
-            // row rather than a silently-plausible one.
-            Value = _isNew ? 0 : _editing.MonthlyAmountJan2025 * 12.0,
+            Value = _isNew ? 0 : (isIncome ? annual / 52.0 : annual),
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
+        _isIncomeWeekly = isIncome;
 
         _err = new TextBlock
         {
@@ -84,14 +91,18 @@ internal sealed class RetirementIncExpDialog : ContentDialog
             args.Cancel = true;
             return;
         }
-        var annual = _annual.Value;
-        if (double.IsNaN(annual) || annual < 0)
+        var entered = _annual.Value;
+        if (double.IsNaN(entered) || entered < 0)
         {
-            _err.Text = "Annual amount must be zero or positive.";
+            _err.Text = "Amount must be zero or positive.";
             args.Cancel = true;
             return;
         }
 
+        // Convert the user-entered value into the monthly storage column.
+        // Income captures weekly → annual = weekly × 52 → monthly = annual/12.
+        // Expense captures annual → monthly = annual/12.
+        var annual = _isIncomeWeekly ? entered * 52.0 : entered;
         _editing.Label = label;
         _editing.MonthlyAmountJan2025 = annual / 12.0;
         Result = _editing;
