@@ -32,6 +32,9 @@
             <NavigationViewItem Content="Retirement Planning" Tag="retirement">
                 <NavigationViewItem.Icon><FontIcon Glyph="&#xE7BA;" /></NavigationViewItem.Icon>
             </NavigationViewItem>
+            <NavigationViewItem Content="Retirement Income / Expense" Tag="retincexp">
+                <NavigationViewItem.Icon><FontIcon Glyph="&#xE9F9;" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
             <NavigationViewItem Content="Gold Ornaments" Tag="gold">
                 <NavigationViewItem.Icon><FontIcon Glyph="&#xEC4F;" /></NavigationViewItem.Icon>
             </NavigationViewItem>

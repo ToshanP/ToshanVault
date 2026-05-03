@@ -76,6 +76,7 @@ public sealed partial class MainShellPage : Page
             case "banks":     ContentFrame.Navigate(typeof(BankAccountsPage)); break;
             case "insurance": ContentFrame.Navigate(typeof(InsurancePage)); break;
             case "retirement": ContentFrame.Navigate(typeof(RetirementPlanningPage)); break;
+            case "retincexp":  ContentFrame.Navigate(typeof(RetirementIncomeExpensePage)); break;
             case "gold":      ContentFrame.Navigate(typeof(GoldOrnamentsPage)); break;
             case "about":     ContentFrame.Navigate(typeof(AboutPage)); break;
             case "lock":      LockAndReturnToLogin(); break;
