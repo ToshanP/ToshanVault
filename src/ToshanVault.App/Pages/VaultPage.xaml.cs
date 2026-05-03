@@ -135,12 +135,23 @@ public sealed partial class VaultPage : Page
         // visual on every keystroke in the search box.
         var existingByKey = _groups.ToDictionary(g => g.NormalizedKey, StringComparer.OrdinalIgnoreCase);
         _groups.Clear();
+        // Index drives the colour pick. Uncategorised is forced to grey so it
+        // doesn't consume a palette slot or shift colours when its position
+        // (always last) is encountered.
+        var colourIndex = 0;
         foreach (var spec in groupSpecs)
         {
+            var isUncategorised = spec.Key == UncategorisedKey;
+            var brush = CategoryColorPalette.BrushForIndex(colourIndex, isUncategorised);
+            if (!isUncategorised) colourIndex++;
+
             if (existingByKey.TryGetValue(spec.Key, out var existing))
             {
                 existing.UpdateEntries(spec.Entries);
                 existing.DisplayName = spec.Display;
+                // Reassign in case alphabetical position shifted (new category
+                // added before this one).
+                existing.HeaderBrush = brush;
                 _groups.Add(existing);
             }
             else
@@ -148,7 +159,7 @@ public sealed partial class VaultPage : Page
                 var vm = new VaultGroupVm(
                     normalizedKey: spec.Key,
                     displayName: spec.Display,
-                    headerBrush: CategoryColorPalette.BrushFor(spec.Key == UncategorisedKey ? null : spec.Display),
+                    headerBrush: brush,
                     isExpanded: !_collapsed.Contains(spec.Key));
                 vm.UpdateEntries(spec.Entries);
                 vm.ExpansionChanged += OnGroupExpansionChanged;
@@ -438,7 +449,17 @@ internal sealed class VaultGroupVm : INotifyPropertyChanged
 
     public string NormalizedKey { get; }
     public string DisplayName { get; set; }
-    public Brush HeaderBrush { get; }
+    private Brush _headerBrush;
+    public Brush HeaderBrush
+    {
+        get => _headerBrush;
+        set
+        {
+            if (ReferenceEquals(_headerBrush, value)) return;
+            _headerBrush = value;
+            Raise(nameof(HeaderBrush));
+        }
+    }
     public ObservableCollection<WebEntryVm> Entries { get; } = new();
 
     private bool _isExpanded;
@@ -465,7 +486,7 @@ internal sealed class VaultGroupVm : INotifyPropertyChanged
     {
         NormalizedKey = normalizedKey;
         DisplayName = displayName;
-        HeaderBrush = headerBrush;
+        _headerBrush = headerBrush;
         _isExpanded = isExpanded;
     }
 
