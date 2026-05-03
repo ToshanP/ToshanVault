@@ -2,13 +2,181 @@
 <Page
     x:Class="ToshanVault_App.Pages.BudgetPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Grid Padding="24,16,24,16" RowSpacing="16">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-        <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Budget" />
-        <TextBlock Grid.Row="1" Text="Monthly / Retirement / Gold tabs land here in Phase 5b." />
-    </Grid>
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:dg="using:CommunityToolkit.WinUI.UI.Controls">
+    <ScrollViewer VerticalScrollMode="Auto" VerticalScrollBarVisibility="Auto">
+        <Grid Padding="24,16,24,24" RowSpacing="16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0">
+                <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Budget" />
+                <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           Text="Weekly cashflow. Each item's amount is converted to a weekly equivalent (52-week year) and summed; the surplus row is Income − all Expenses." />
+            </StackPanel>
+
+            <InfoBar x:Name="InfoBar" Grid.Row="1" IsClosable="True" IsOpen="False" />
+
+            <!-- ============================ INCOME ============================ -->
+            <Border Grid.Row="2"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="14">
+                <StackPanel Spacing="10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Income" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                            <Button Content="+ Add" Click="AddIncome_Click" Style="{StaticResource AccentButtonStyle}" />
+                            <Button x:Name="EditIncomeBtn"   Content="✏ Edit"   Click="EditIncome_Click"   IsEnabled="False" />
+                            <Button x:Name="DeleteIncomeBtn" Content="🗑 Delete" Click="DeleteIncome_Click" IsEnabled="False" />
+                        </StackPanel>
+                    </Grid>
+                    <dg:DataGrid x:Name="IncomeGrid"
+                                 AutoGenerateColumns="False" SelectionMode="Single"
+                                 IsReadOnly="True" CanUserSortColumns="True"
+                                 GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                                 SelectionChanged="IncomeGrid_SelectionChanged"
+                                 Sorting="IncomeGrid_Sorting"
+                                 DoubleTapped="IncomeGrid_DoubleTapped"
+                                 MaxHeight="320">
+                        <dg:DataGrid.Columns>
+                            <dg:DataGridTextColumn Header="Description" Tag="Label"     Binding="{Binding Label}"            Width="3*" />
+                            <dg:DataGridTextColumn Header="Amount"      Tag="Amount"    Binding="{Binding AmountDisplay}"    Width="*" />
+                            <dg:DataGridTextColumn Header="Frequency"   Tag="Frequency" Binding="{Binding Frequency}"        Width="*" />
+                            <dg:DataGridTextColumn Header="Weekly"      Tag="Weekly"    Binding="{Binding WeeklyDisplay}"    Width="*" />
+                            <dg:DataGridTextColumn Header="Annual"      Tag="Annual"    Binding="{Binding AnnualDisplay}"    Width="*" />
+                        </dg:DataGrid.Columns>
+                    </dg:DataGrid>
+                    <Grid Padding="6,2,6,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="3*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Total" />
+                        <TextBlock Grid.Column="3" x:Name="IncomeWeeklyTotal" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock Grid.Column="4" x:Name="IncomeAnnualTotal" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- ============================ FIXED EXPENSES ============================ -->
+            <Border Grid.Row="3"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="14">
+                <StackPanel Spacing="10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Fixed expenses" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                            <Button Content="+ Add" Click="AddFixed_Click" Style="{StaticResource AccentButtonStyle}" />
+                            <Button x:Name="EditFixedBtn"   Content="✏ Edit"   Click="EditFixed_Click"   IsEnabled="False" />
+                            <Button x:Name="DeleteFixedBtn" Content="🗑 Delete" Click="DeleteFixed_Click" IsEnabled="False" />
+                        </StackPanel>
+                    </Grid>
+                    <dg:DataGrid x:Name="FixedGrid"
+                                 AutoGenerateColumns="False" SelectionMode="Single"
+                                 IsReadOnly="True" CanUserSortColumns="True"
+                                 GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                                 SelectionChanged="FixedGrid_SelectionChanged"
+                                 Sorting="FixedGrid_Sorting"
+                                 DoubleTapped="FixedGrid_DoubleTapped"
+                                 MaxHeight="420">
+                        <dg:DataGrid.Columns>
+                            <dg:DataGridTextColumn Header="Description" Tag="Label"     Binding="{Binding Label}"            Width="3*" />
+                            <dg:DataGridTextColumn Header="Amount"      Tag="Amount"    Binding="{Binding AmountDisplay}"    Width="*" />
+                            <dg:DataGridTextColumn Header="Frequency"   Tag="Frequency" Binding="{Binding Frequency}"        Width="*" />
+                            <dg:DataGridTextColumn Header="Weekly"      Tag="Weekly"    Binding="{Binding WeeklyDisplay}"    Width="*" />
+                            <dg:DataGridTextColumn Header="Annual"      Tag="Annual"    Binding="{Binding AnnualDisplay}"    Width="*" />
+                        </dg:DataGrid.Columns>
+                    </dg:DataGrid>
+                    <Grid Padding="6,2,6,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="3*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Total" />
+                        <TextBlock Grid.Column="3" x:Name="FixedWeeklyTotal" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock Grid.Column="4" x:Name="FixedAnnualTotal" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- ============================ VARIABLE EXPENSES ============================ -->
+            <Border Grid.Row="4"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="14">
+                <StackPanel Spacing="10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Variable expenses" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                            <Button Content="+ Add" Click="AddVariable_Click" Style="{StaticResource AccentButtonStyle}" />
+                            <Button x:Name="EditVariableBtn"   Content="✏ Edit"   Click="EditVariable_Click"   IsEnabled="False" />
+                            <Button x:Name="DeleteVariableBtn" Content="🗑 Delete" Click="DeleteVariable_Click" IsEnabled="False" />
+                        </StackPanel>
+                    </Grid>
+                    <dg:DataGrid x:Name="VariableGrid"
+                                 AutoGenerateColumns="False" SelectionMode="Single"
+                                 IsReadOnly="True" CanUserSortColumns="True"
+                                 GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                                 SelectionChanged="VariableGrid_SelectionChanged"
+                                 Sorting="VariableGrid_Sorting"
+                                 DoubleTapped="VariableGrid_DoubleTapped"
+                                 MaxHeight="420">
+                        <dg:DataGrid.Columns>
+                            <dg:DataGridTextColumn Header="Description" Tag="Label"     Binding="{Binding Label}"            Width="3*" />
+                            <dg:DataGridTextColumn Header="Amount"      Tag="Amount"    Binding="{Binding AmountDisplay}"    Width="*" />
+                            <dg:DataGridTextColumn Header="Frequency"   Tag="Frequency" Binding="{Binding Frequency}"        Width="*" />
+                            <dg:DataGridTextColumn Header="Weekly"      Tag="Weekly"    Binding="{Binding WeeklyDisplay}"    Width="*" />
+                            <dg:DataGridTextColumn Header="Annual"      Tag="Annual"    Binding="{Binding AnnualDisplay}"    Width="*" />
+                        </dg:DataGrid.Columns>
+                    </dg:DataGrid>
+                    <Grid Padding="6,2,6,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="3*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Total" />
+                        <TextBlock Grid.Column="3" x:Name="VariableWeeklyTotal" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock Grid.Column="4" x:Name="VariableAnnualTotal" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- ============================ SURPLUS ============================ -->
+            <Border Grid.Row="5"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="14">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="3*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Surplus (Income − Expenses)" />
+                    <TextBlock Grid.Column="3" x:Name="SurplusWeekly" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <TextBlock Grid.Column="4" x:Name="SurplusAnnual" Style="{StaticResource SubtitleTextBlockStyle}" />
+                </Grid>
+            </Border>
+        </Grid>
+    </ScrollViewer>
 </Page>

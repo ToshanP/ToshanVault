@@ -9,6 +9,8 @@ public enum BudgetCategoryType
 
 public enum BudgetFrequency
 {
+    Weekly,
+    Fortnightly,
     Monthly,
     Quarterly,
     Yearly,
