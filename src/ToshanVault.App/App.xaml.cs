@@ -34,7 +34,7 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        Log.Information("OnLaunched");
+        Log.Information("OnLaunched. Database: {Path}", AppPaths.DatabasePath);
         AppHost.Build();
         // Best-effort sweep of any decrypted-attachment temp files left over
         // from a previous crash. Safe to run before login because it only
