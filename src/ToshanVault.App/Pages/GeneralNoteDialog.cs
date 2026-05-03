@@ -38,9 +38,11 @@ internal sealed class GeneralNoteDialog : ContentDialog
         CloseButtonText = "Cancel";
         DefaultButton = ContentDialogButton.Primary;
 
+        // Note dialog is ~30% wider than the standard vault dialog because
+        // the rich-text body benefits from longer line lengths.
         Resources["ContentDialogMaxHeight"] = 1080d;
-        Resources["ContentDialogMaxWidth"]  = 720d;
-        Resources["ContentDialogMinWidth"]  = 560d;
+        Resources["ContentDialogMaxWidth"]  = 936d;
+        Resources["ContentDialogMinWidth"]  = 728d;
 
         _name = new TextBox
         {
@@ -70,7 +72,7 @@ internal sealed class GeneralNoteDialog : ContentDialog
             Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"],
         };
 
-        var panel = new StackPanel { Spacing = 8, Width = 560 };
+        var panel = new StackPanel { Spacing = 8, Width = 728 };
         panel.Children.Add(_name);
         panel.Children.Add(_owner);
         panel.Children.Add(_body.Container);
