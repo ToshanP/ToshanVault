@@ -17,7 +17,6 @@ internal sealed class BankAccountDialog : ContentDialog
     public BankAccount? Result { get; private set; }
     private readonly BankAccount? _existing;
     private readonly TextBox _bank, _name, _bsb, _ifsc, _acct, _holder, _interest, _website;
-    private readonly RichNotesField _notes;
     private readonly ComboBox _type;
     private readonly ToggleSwitch _statusToggle;
     private readonly TextBlock _statusHint;
@@ -52,7 +51,6 @@ internal sealed class BankAccountDialog : ContentDialog
         _holder   = TB("Holder name (optional)",    existing?.HolderName);
         _interest = TB("Interest rate % (optional, used for mortgage in retirement plan)", existing?.InterestRatePct?.ToString());
         _website  = TB("Website (optional, e.g. https://www.anz.com)", existing?.Website);
-        _notes    = new RichNotesField("Notes (optional, formatted)", existing?.Notes, minHeight: 200);
 
         _type = new ComboBox { Header = "Account type", HorizontalAlignment = HorizontalAlignment.Stretch };
         foreach (var t in Enum.GetValues<BankAccountType>()) _type.Items.Add(t.ToString());
@@ -106,7 +104,6 @@ internal sealed class BankAccountDialog : ContentDialog
         panel.Children.Add(_holder);
         panel.Children.Add(_interest);
         panel.Children.Add(_website);
-        panel.Children.Add(_notes.Container);
         if (existing is not null) // status toggle only meaningful for existing rows
         {
             panel.Children.Add(_statusToggle);
@@ -232,7 +229,6 @@ internal sealed class BankAccountDialog : ContentDialog
         Result.HolderName = N(_holder.Text);
         Result.InterestRatePct = interest;
         Result.Website = N(_website.Text);
-        Result.Notes = _notes.GetValue();
 
         // Apply toggle-driven status transition. The page reads these and calls
         // CloseAsync / ReopenAsync after UpdateAsync so the repo API stays clean.
@@ -265,10 +261,6 @@ internal sealed class CredentialsModel
     public string Password { get; set; } = string.Empty;
     public string CardPin { get; set; } = string.Empty;
     public string PhonePin { get; set; } = string.Empty;
-    /// <summary>RTF (or legacy plain text). Encrypted at rest like the rest of
-    /// the credential fields; the RTF marker is detected by RichNotesField on
-    /// load. Empty/whitespace stays as empty string and is not persisted.</summary>
-    public string Notes { get; set; } = string.Empty;
     public QaPair[] Qa { get; } = Enumerable.Range(0, BankCredentialsService.MaxQa).Select(_ => new QaPair("", "")).ToArray();
 }
 
@@ -279,7 +271,6 @@ internal sealed class CredentialsDialog : ContentDialog
     private readonly CredentialsModel _model;
     private readonly TextBox _username, _clientId;
     private readonly PasswordBox _password, _cardPin, _phonePin;
-    private readonly RichNotesField _notes;
     private readonly TextBox[] _q = new TextBox[BankCredentialsService.MaxQa];
     private readonly PasswordBox[] _a = new PasswordBox[BankCredentialsService.MaxQa];
 
@@ -316,8 +307,6 @@ internal sealed class CredentialsDialog : ContentDialog
         _password = SecretFieldHelpers.AddSecret(panel, "Password (encrypted at rest)", model.Password);
         _cardPin  = SecretFieldHelpers.AddSecret(panel, "Card PIN (encrypted at rest)", model.CardPin);
         _phonePin = SecretFieldHelpers.AddSecret(panel, "Phone-banking PIN (encrypted at rest)", model.PhonePin);
-        _notes    = new RichNotesField("Notes (encrypted at rest, formatted)", model.Notes, minHeight: 160);
-        panel.Children.Add(_notes.Container);
         panel.Children.Add(new TextBlock { Text = "Security questions (up to 10) — answers encrypted at rest.",
                                            Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] });
         for (var i = 0; i < BankCredentialsService.MaxQa; i++)
@@ -337,7 +326,6 @@ internal sealed class CredentialsDialog : ContentDialog
             _model.Password = _password.Password;
             _model.CardPin  = _cardPin.Password;
             _model.PhonePin = _phonePin.Password;
-            _model.Notes    = _notes.GetValue() ?? string.Empty;
             for (var i = 0; i < BankCredentialsService.MaxQa; i++)
                 _model.Qa[i] = new QaPair(_q[i].Text, _a[i].Password);
         };

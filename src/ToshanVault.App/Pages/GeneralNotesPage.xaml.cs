@@ -111,19 +111,34 @@ public sealed partial class GeneralNotesPage : Page
         finally { _busy = false; }
     }
 
-    // ---- Edit --------------------------------------------------------------
+    // ---- Edit (tile click opens notes popup) --------------------------------
     private async void Tile_ItemClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is NoteVm vm) await EditAsync(vm.Id);
+        if (e.ClickedItem is NoteVm vm) await OpenNotesAsync(vm.Id);
+    }
+
+    private async Task OpenNotesAsync(long id)
+    {
+        if (_busy) return; _busy = true;
+        try
+        {
+            var entry = await _entryRepo.GetAsync(id);
+            if (entry is null) { ShowError("Note not found."); await ReloadAsync(); return; }
+            var body = await _notes.LoadBodyAsync(id);
+
+            var (saved, value) = await NotesWindow.ShowAsync(entry.Name, body);
+            if (!saved) return;
+
+            await _notes.SaveBodyAsync(id, value);
+            await ReloadAsync();
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
     }
 
     private async void Edit_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button b && b.Tag is long id) await EditAsync(id);
-    }
-
-    private async Task EditAsync(long id)
-    {
+        if (sender is not Button b || b.Tag is not long id) return;
         if (_busy) return; _busy = true;
         try
         {

@@ -76,8 +76,16 @@
                                        MaxLines="3"
                                        TextTrimming="CharacterEllipsis" />
                             <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
-                                <Button Content="✏" Tag="{Binding Id}" Click="Edit_Click" />
-                                <Button Content="🗑" Tag="{Binding Id}" Click="Delete_Click" />
+                                <Button Tag="{Binding Id}" Click="Edit_Click"
+                                        ToolTipService.ToolTip="Edit title / owner"
+                                        Width="32" Height="32" Padding="0">
+                                    <FontIcon Glyph="&#xE70F;" FontSize="14" />
+                                </Button>
+                                <Button Tag="{Binding Id}" Click="Delete_Click"
+                                        ToolTipService.ToolTip="Delete note"
+                                        Width="32" Height="32" Padding="0">
+                                    <FontIcon Glyph="&#xE74D;" FontSize="14" />
+                                </Button>
                             </StackPanel>
                         </Grid>
                     </Border>

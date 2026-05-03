@@ -236,7 +236,7 @@ public sealed partial class VaultPage : Page
         if (_busy) return; _busy = true;
         try
         {
-            var dlg = new VaultEntryDialog(this.XamlRoot, null, null, null, null, null, KnownCategories());
+            var dlg = new VaultEntryDialog(this.XamlRoot, null, null, null, null, KnownCategories());
             if (prefillCategory is not null) dlg.PrefillCategory(prefillCategory);
             if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
 
@@ -244,7 +244,7 @@ public sealed partial class VaultPage : Page
             var entryId = await _entryRepo.InsertAsync(entry);
 
             await _credService.SaveAsync(entryId, BuildEntryFieldSpecs(
-                dlg.NumberValue, dlg.WebsiteValue, dlg.AdditionalDetailsValue));
+                dlg.NumberValue, dlg.WebsiteValue, null));
 
             await ReloadAsync();
         }
@@ -267,16 +267,46 @@ public sealed partial class VaultPage : Page
             var dlg = new VaultEntryDialog(this.XamlRoot, existing,
                 loaded.GetValueOrDefault(WebCredentialsService.NumberLabel),
                 loaded.GetValueOrDefault(WebCredentialsService.WebsiteLabel),
-                loaded.GetValueOrDefault(WebCredentialsService.AdditionalDetailsLabel),
                 _attachments,
                 KnownCategories());
             if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
 
             await _entryRepo.UpdateAsync(dlg.Result!);
+            // Preserve existing additional details (now edited via notes popup)
+            var existingDetails = loaded.GetValueOrDefault(WebCredentialsService.AdditionalDetailsLabel);
             await _credService.SaveAsync(id, BuildEntryFieldSpecs(
-                dlg.NumberValue, dlg.WebsiteValue, dlg.AdditionalDetailsValue));
+                dlg.NumberValue, dlg.WebsiteValue, existingDetails));
 
             await ReloadAsync();
+        }
+        catch (VaultLockedException) { _nav.NavigateToLogin(); }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    // ---- Notes popup --------------------------------------------------------
+    private async void Notes_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return; _busy = true;
+        try
+        {
+            var id = (long)((Button)sender).Tag;
+            var entry = await _entryRepo.GetAsync(id);
+            if (entry is null) { ShowError("Entry not found."); await ReloadAsync(); return; }
+
+            // Additional details are stored encrypted via WebCredentialsService
+            var loaded = await _credService.LoadAsync(id);
+            var currentNotes = loaded.GetValueOrDefault(WebCredentialsService.AdditionalDetailsLabel);
+
+            var (saved, value) = await NotesWindow.ShowAsync($"{entry.Name} Notes", currentNotes);
+            if (!saved) return;
+
+            // Save back: preserve other fields, update additional details
+            await _credService.SaveAsync(id, BuildEntryFieldSpecs(
+                loaded.GetValueOrDefault(WebCredentialsService.NumberLabel),
+                loaded.GetValueOrDefault(WebCredentialsService.WebsiteLabel),
+                value));
+            ShowInfo("Notes saved.");
         }
         catch (VaultLockedException) { _nav.NavigateToLogin(); }
         catch (Exception ex) { ShowError(ex.Message); }

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Window
+    x:Class="ToshanVault_App.Pages.NotesWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Notes">
+    <Grid Padding="24" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="TitleText" Grid.Row="0"
+                   Style="{StaticResource SubtitleTextBlockStyle}"
+                   Text="Notes" />
+
+        <Border x:Name="EditorHost" Grid.Row="1"
+                CornerRadius="6"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8"
+                    HorizontalAlignment="Right">
+            <Button x:Name="SaveButton" Content="Save" Click="Save_Click"
+                    Style="{StaticResource AccentButtonStyle}" />
+            <Button x:Name="CancelButton" Content="Cancel" Click="Cancel_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

@@ -134,6 +134,28 @@ public sealed partial class BankAccountsPage : Page
         finally { _busy = false; }
     }
 
+    // ---- Notes popup --------------------------------------------------------
+    private async void Notes_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return; _busy = true;
+        try
+        {
+            var id = (long)((Button)sender).Tag;
+            var existing = await _bankRepo.GetAsync(id);
+            if (existing is null) { ShowError("Account not found."); await ReloadAsync(); return; }
+
+            var (saved, value) = await NotesWindow.ShowAsync(
+                $"{existing.Bank} — {existing.AccountName} Notes", existing.Notes);
+            if (!saved) return;
+
+            existing.Notes = value;
+            await _bankRepo.UpdateAsync(existing);
+            ShowInfo("Notes saved.");
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
     // ---- Existing credential clicked (avatar) ------------------------------
     private async void Credential_Click(object sender, RoutedEventArgs e)
     {
@@ -188,7 +210,6 @@ public sealed partial class BankAccountsPage : Page
                 Password = loaded.GetValueOrDefault(BankCredentialsService.PasswordLabel, ""),
                 CardPin  = loaded.GetValueOrDefault(BankCredentialsService.CardPinLabel, ""),
                 PhonePin = loaded.GetValueOrDefault(BankCredentialsService.PhonePinLabel, ""),
-                Notes    = loaded.GetValueOrDefault(BankCredentialsService.NotesLabel, ""),
             };
             for (var i = 0; i < BankCredentialsService.MaxQa; i++)
             {
@@ -242,10 +263,8 @@ public sealed partial class BankAccountsPage : Page
                 new(BankCredentialsService.PasswordLabel, creds.Password, true),
                 new(BankCredentialsService.CardPinLabel,  creds.CardPin,  true),
                 new(BankCredentialsService.PhonePinLabel, creds.PhonePin, true),
-                // Notes is RTF — not flagged as IsSecret so it doesn't render
-                // behind a reveal-eye, but still encrypted at rest like every
-                // bank_login.* field via the vault_field column.
-                new(BankCredentialsService.NotesLabel,    creds.Notes,    false),
+                // Preserve existing credential notes (now edited via notes popup)
+                new(BankCredentialsService.NotesLabel,    loaded.GetValueOrDefault(BankCredentialsService.NotesLabel, ""), false),
             };
             for (var i = 0; i < BankCredentialsService.MaxQa; i++)
             {
@@ -266,7 +285,7 @@ public sealed partial class BankAccountsPage : Page
             if (creds is not null)
             {
                 creds.Username = creds.ClientId = creds.Password = string.Empty;
-                creds.CardPin = creds.PhonePin = creds.Notes = string.Empty;
+                creds.CardPin = creds.PhonePin = string.Empty;
                 for (var i = 0; i < creds.Qa.Length; i++) creds.Qa[i] = new QaPair("", "");
             }
         }

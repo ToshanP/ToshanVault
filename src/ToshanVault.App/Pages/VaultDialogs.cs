@@ -22,11 +22,9 @@ internal sealed class VaultEntryDialog : ContentDialog
     public VaultEntry? Result { get; private set; }
     public string? NumberValue { get; private set; }
     public string? WebsiteValue { get; private set; }
-    public string? AdditionalDetailsValue { get; private set; }
 
     private readonly VaultEntry? _existing;
     private readonly TextBox _name, _number, _website;
-    private readonly RichNotesField _additional;
     private readonly ComboBox _owner;
     private readonly AutoSuggestBox _category;
     private readonly TextBlock _err;
@@ -36,7 +34,6 @@ internal sealed class VaultEntryDialog : ContentDialog
         VaultEntry? existing,
         string? initialNumber,
         string? initialWebsite,
-        string? initialAdditionalDetails,
         AttachmentService? attachments = null,
         IReadOnlyList<string>? existingCategories = null)
     {
@@ -47,7 +44,7 @@ internal sealed class VaultEntryDialog : ContentDialog
         CloseButtonText = "Cancel";
         DefaultButton = ContentDialogButton.Primary;
 
-        // Stretch the dialog so the rich notes area + form fit without needing
+        // Stretch the dialog so the form fields fit without needing
         // an inner scrollbar on most monitors.
         this.Resources["ContentDialogMaxHeight"] = 1080d;
         this.Resources["ContentDialogMaxWidth"]  = 720d;
@@ -56,11 +53,6 @@ internal sealed class VaultEntryDialog : ContentDialog
         _name       = TB("Name (e.g. Netflix, Aussie Super)", existing?.Name);
         _number     = TB("Number / Membership ID (optional, encrypted at rest)", initialNumber);
         _website    = TB("Website (optional, encrypted at rest)",                initialWebsite);
-
-        _additional = new RichNotesField(
-            "Additional details (optional, encrypted at rest, formatted)",
-            initialAdditionalDetails,
-            minHeight: 220);
 
         _owner = new ComboBox { Header = "Owner", HorizontalAlignment = HorizontalAlignment.Stretch };
         foreach (var o in OwnerOptions) _owner.Items.Add(o);
@@ -100,7 +92,6 @@ internal sealed class VaultEntryDialog : ContentDialog
         panel.Children.Add(_category);
         panel.Children.Add(_number);
         panel.Children.Add(_website);
-        panel.Children.Add(_additional.Container);
         panel.Children.Add(_err);
         // Attachments only on existing entries.
         if (existing is not null && attachments is not null)
@@ -143,7 +134,6 @@ internal sealed class VaultEntryDialog : ContentDialog
         Result.Category = N(_category.Text);
         NumberValue = N(_number.Text);
         WebsiteValue = N(_website.Text);
-        AdditionalDetailsValue = _additional.GetValue();
     }
 
     private static TextBox TB(string header, string? value) =>

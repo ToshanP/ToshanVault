@@ -76,9 +76,26 @@
                                                Text="{Binding RenewalText}" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4">
-                                    <Button Content="Edit"  Click="Edit_Click"        Tag="{Binding Id}" />
-                                    <Button Content="Login" Click="Credentials_Click" Tag="{Binding Id}" />
-                                    <Button Content="Del"   Click="Delete_Click"      Tag="{Binding Id}" />
+                                    <Button Click="Edit_Click" Tag="{Binding Id}"
+                                            ToolTipService.ToolTip="Edit policy details"
+                                            Width="32" Height="32" Padding="0">
+                                        <FontIcon Glyph="&#xE70F;" FontSize="14" />
+                                    </Button>
+                                    <Button Click="Notes_Click" Tag="{Binding Id}"
+                                            ToolTipService.ToolTip="Notes"
+                                            Width="32" Height="32" Padding="0">
+                                        <FontIcon Glyph="&#xE70B;" FontSize="14" />
+                                    </Button>
+                                    <Button Click="Credentials_Click" Tag="{Binding Id}"
+                                            ToolTipService.ToolTip="Login credentials"
+                                            Width="32" Height="32" Padding="0">
+                                        <FontIcon Glyph="&#xE8D7;" FontSize="14" />
+                                    </Button>
+                                    <Button Click="Delete_Click" Tag="{Binding Id}"
+                                            ToolTipService.ToolTip="Delete policy"
+                                            Width="32" Height="32" Padding="0">
+                                        <FontIcon Glyph="&#xE74D;" FontSize="14" />
+                                    </Button>
                                 </StackPanel>
                             </Grid>
                         </Border>

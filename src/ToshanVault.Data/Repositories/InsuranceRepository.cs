@@ -27,6 +27,7 @@ public sealed class InsuranceRepository
           website         AS Website,
           owner           AS Owner,
           renewal_date    AS RenewalDate,
+          notes           AS Notes,
           vault_entry_id  AS VaultEntryId,
           sort_order      AS SortOrder,
           created_at      AS CreatedAt,
@@ -51,15 +52,15 @@ public sealed class InsuranceRepository
         }
         var id = await conn.ExecuteScalarAsync<long>(new CommandDefinition(
             @"INSERT INTO insurance(insurer_company, policy_number, insurance_type, website, owner,
-                                    renewal_date, vault_entry_id, sort_order, created_at, updated_at)
+                                    renewal_date, notes, vault_entry_id, sort_order, created_at, updated_at)
               VALUES (@InsurerCompany, @PolicyNumber, @InsuranceType, @Website, @Owner,
-                      @RenewalDate, @VaultEntryId, @SortOrder, @CreatedAt, @UpdatedAt);
+                      @RenewalDate, @Notes, @VaultEntryId, @SortOrder, @CreatedAt, @UpdatedAt);
               SELECT last_insert_rowid();",
             new
             {
                 e.InsurerCompany, e.PolicyNumber, e.InsuranceType, e.Website, e.Owner,
                 RenewalDate = e.RenewalDate?.ToString("yyyy-MM-dd"),
-                e.VaultEntryId, e.SortOrder, e.CreatedAt, e.UpdatedAt,
+                e.Notes, e.VaultEntryId, e.SortOrder, e.CreatedAt, e.UpdatedAt,
             },
             cancellationToken: ct)).ConfigureAwait(false);
         e.Id = id;
@@ -77,14 +78,14 @@ public sealed class InsuranceRepository
             @"UPDATE insurance
                 SET insurer_company=@InsurerCompany, policy_number=@PolicyNumber,
                     insurance_type=@InsuranceType,   website=@Website, owner=@Owner,
-                    renewal_date=@RenewalDate,       vault_entry_id=@VaultEntryId,
-                    updated_at=@UpdatedAt
+                    renewal_date=@RenewalDate,       notes=@Notes,
+                    vault_entry_id=@VaultEntryId,    updated_at=@UpdatedAt
               WHERE id=@Id;",
             new
             {
                 e.Id, e.InsurerCompany, e.PolicyNumber, e.InsuranceType, e.Website, e.Owner,
                 RenewalDate = e.RenewalDate?.ToString("yyyy-MM-dd"),
-                e.VaultEntryId, e.UpdatedAt,
+                e.Notes, e.VaultEntryId, e.UpdatedAt,
             },
             cancellationToken: ct)).ConfigureAwait(false);
         if (rows == 0) throw new InvalidOperationException($"Insurance {e.Id} not found.");

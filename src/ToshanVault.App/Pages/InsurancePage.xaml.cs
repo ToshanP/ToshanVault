@@ -109,6 +109,29 @@ public sealed partial class InsurancePage : Page
         finally { _busy = false; }
     }
 
+    // ---- Notes popup --------------------------------------------------------
+    private async void Notes_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return; _busy = true;
+        try
+        {
+            var id = (long)((Button)sender).Tag;
+            var existing = await _repo.GetAsync(id);
+            if (existing is null) { ShowError("Policy not found."); await ReloadAsync(); return; }
+
+            var (saved, value) = await NotesWindow.ShowAsync(
+                $"{existing.InsurerCompany} Notes", existing.Notes);
+            if (!saved) return;
+
+            existing.Notes = value;
+            await _repo.UpdateAsync(existing);
+            ShowInfo("Notes saved.");
+        }
+        catch (VaultLockedException) { _nav.NavigateToLogin(); }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
     // ---- Credentials -------------------------------------------------------
     private async void Credentials_Click(object sender, RoutedEventArgs e)
     {
@@ -125,7 +148,6 @@ public sealed partial class InsurancePage : Page
             {
                 Username = loaded.GetValueOrDefault(InsuranceCredentialsService.UsernameLabel, ""),
                 Password = loaded.GetValueOrDefault(InsuranceCredentialsService.PasswordLabel, ""),
-                Notes    = loaded.GetValueOrDefault(InsuranceCredentialsService.NotesLabel, ""),
             };
 
             var dlg = new InsuranceCredentialsDialog(this.XamlRoot, ins.InsurerCompany, creds);
@@ -135,7 +157,8 @@ public sealed partial class InsurancePage : Page
             {
                 new(InsuranceCredentialsService.UsernameLabel, creds.Username, false),
                 new(InsuranceCredentialsService.PasswordLabel, creds.Password, true),
-                new(InsuranceCredentialsService.NotesLabel,    creds.Notes,    false),
+                // Preserve existing credential notes (now edited via notes popup on the insurance table)
+                new(InsuranceCredentialsService.NotesLabel, loaded.GetValueOrDefault(InsuranceCredentialsService.NotesLabel, ""), false),
             };
             await _credService.SaveAsync(id, specs);
             ShowInfo("Credentials saved (encrypted in vault).");
@@ -144,7 +167,7 @@ public sealed partial class InsurancePage : Page
         catch (Exception ex) { ShowError(ex.Message); }
         finally
         {
-            if (creds is not null) { creds.Username = creds.Password = creds.Notes = string.Empty; }
+            if (creds is not null) { creds.Username = creds.Password = string.Empty; }
             _busy = false;
         }
     }

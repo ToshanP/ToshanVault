@@ -121,7 +121,6 @@ internal sealed class InsuranceCredentialsModel
 {
     public string Username { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
-    public string Notes    { get; set; } = string.Empty;
 }
 
 internal sealed class InsuranceCredentialsDialog : ContentDialog
@@ -129,7 +128,6 @@ internal sealed class InsuranceCredentialsDialog : ContentDialog
     private readonly InsuranceCredentialsModel _model;
     private readonly TextBox _username;
     private readonly PasswordBox _password;
-    private readonly RichNotesField _notes;
 
     public InsuranceCredentialsDialog(XamlRoot root, string subtitle, InsuranceCredentialsModel model)
     {
@@ -149,8 +147,6 @@ internal sealed class InsuranceCredentialsDialog : ContentDialog
         var panel = new StackPanel { Spacing = 8, Width = 560 };
         panel.Children.Add(_username);
         _password = SecretFieldHelpers.AddSecret(panel, "Password (encrypted at rest)", model.Password);
-        _notes    = new RichNotesField("Notes (encrypted at rest, formatted)", model.Notes, minHeight: 200);
-        panel.Children.Add(_notes.Container);
 
         Content = new ScrollViewer
         {
@@ -164,7 +160,6 @@ internal sealed class InsuranceCredentialsDialog : ContentDialog
         {
             _model.Username = _username.Text;
             _model.Password = _password.Password;
-            _model.Notes    = _notes.GetValue() ?? string.Empty;
         };
     }
 }

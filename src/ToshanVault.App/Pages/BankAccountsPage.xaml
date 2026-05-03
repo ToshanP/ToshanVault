@@ -72,6 +72,11 @@
                                                 Width="32" Height="32" Padding="0">
                                             <FontIcon Glyph="&#xE70F;" FontSize="14" />
                                         </Button>
+                                        <Button Click="Notes_Click" Tag="{Binding Id}"
+                                                ToolTipService.ToolTip="Notes"
+                                                Width="32" Height="32" Padding="0">
+                                            <FontIcon Glyph="&#xE70B;" FontSize="14" />
+                                        </Button>
                                         <ItemsControl ItemsSource="{Binding Credentials}">
                                             <ItemsControl.ItemsPanel>
                                                 <ItemsPanelTemplate>

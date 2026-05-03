@@ -242,6 +242,9 @@ public sealed class Insurance
     /// <summary>Nullable until the user opens the credentials dialog at least
     /// once; the entry is created on first save and the FK back-fills.</summary>
     public long? VaultEntryId { get; set; }
+    /// <summary>Free-form notes (RTF or plain text), independent from the
+    /// encrypted credential notes. Opened via the notes popup window.</summary>
+    public string? Notes { get; set; }
     /// <summary>User-controlled drag-and-drop ordering. Defaults to id on
     /// insert; backfilled by migration 015 for legacy rows.</summary>
     public int SortOrder { get; set; }
