@@ -45,6 +45,40 @@ public sealed partial class RetirementIncomeExpensePage : Page
         InitializeComponent();
         ExpenseGrid.ItemsSource = _expenses;
         IncomeGrid.ItemsSource  = _income;
+
+        // Sync the totals/surplus column widths to the DataGrid's actual
+        // column widths after every layout pass. This compensates for the
+        // vertical scrollbar gutter (and any future auto-sized DataGrid
+        // column changes) so the Total / Surplus values line up exactly
+        // under the grid columns above them. The 4th "spacer" column on
+        // each totals grid absorbs the residual width so columns 1-3 keep
+        // matching the DataGrid widths instead of being stretched by *.
+        ExpenseGrid.LayoutUpdated += (_, __) => SyncWidths(ExpenseGrid, ExpenseTotalsGrid);
+        IncomeGrid .LayoutUpdated += (_, __) =>
+        {
+            SyncWidths(IncomeGrid, IncomeTotalsGrid);
+            // Surplus has no DataGrid above it; mirror the Income grid so it
+            // aligns with the same set of columns.
+            SyncWidths(IncomeGrid, SurplusGrid);
+        };
+    }
+
+    private static void SyncWidths(CommunityToolkit.WinUI.UI.Controls.DataGrid src, Grid totals)
+    {
+        if (src.Columns.Count == 0 || totals.ColumnDefinitions.Count < src.Columns.Count + 1) return;
+        double used = 0;
+        for (int i = 0; i < src.Columns.Count; i++)
+        {
+            var w = src.Columns[i].ActualWidth;
+            if (w <= 0) return; // not laid out yet
+            totals.ColumnDefinitions[i].Width = new GridLength(w);
+            used += w;
+        }
+        // Spacer column = whatever the DataGrid lost to its vertical
+        // scrollbar / row-header gutter, so the right edge of the last
+        // value column aligns with the right edge of the last data column.
+        var spacer = Math.Max(0, src.ActualWidth - used);
+        totals.ColumnDefinitions[^1].Width = new GridLength(spacer);
     }
 
     protected override async void OnNavigatedTo(NavigationEventArgs e)

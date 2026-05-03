@@ -71,17 +71,18 @@
                         </dg:DataGrid.Columns>
                     </dg:DataGrid>
 
-                    <Grid Padding="6,2,6,2">
+                    <Grid x:Name="ExpenseTotalsGrid" Padding="6,2,6,2">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="3*" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="0" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Total" />
                         <TextBlock Grid.Column="1" x:Name="ExpenseAnnualTotal" Style="{StaticResource BodyStrongTextBlockStyle}"
-                                   HorizontalAlignment="Right" TextAlignment="Right" Padding="0,0,12,0" />
+                                   HorizontalAlignment="Right" TextAlignment="Right" />
                         <TextBlock Grid.Column="2" x:Name="ExpenseWeeklyTotal" Style="{StaticResource BodyStrongTextBlockStyle}"
-                                   HorizontalAlignment="Right" TextAlignment="Right" Padding="0,0,12,0" />
+                                   HorizontalAlignment="Right" TextAlignment="Right" />
                     </Grid>
                 </StackPanel>
             </Border>
@@ -125,17 +126,18 @@
                         </dg:DataGrid.Columns>
                     </dg:DataGrid>
 
-                    <Grid Padding="6,2,6,2">
+                    <Grid x:Name="IncomeTotalsGrid" Padding="6,2,6,2">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="3*" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="0" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Total" />
                         <TextBlock Grid.Column="1" x:Name="IncomeAnnualTotal" Style="{StaticResource BodyStrongTextBlockStyle}"
-                                   HorizontalAlignment="Right" TextAlignment="Right" Padding="0,0,12,0" />
+                                   HorizontalAlignment="Right" TextAlignment="Right" />
                         <TextBlock Grid.Column="2" x:Name="IncomeWeeklyTotal" Style="{StaticResource BodyStrongTextBlockStyle}"
-                                   HorizontalAlignment="Right" TextAlignment="Right" Padding="0,0,12,0" />
+                                   HorizontalAlignment="Right" TextAlignment="Right" />
                     </Grid>
                 </StackPanel>
             </Border>
@@ -145,17 +147,18 @@
                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1" CornerRadius="8" Padding="14">
-                <Grid>
+                <Grid x:Name="SurplusGrid">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="3*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="0" />
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="SurplusLabel" Style="{StaticResource SubtitleTextBlockStyle}" Text="Surplus (Income − Expense)" />
                     <TextBlock Grid.Column="1" x:Name="SurplusAnnual" Style="{StaticResource SubtitleTextBlockStyle}"
-                               HorizontalAlignment="Right" TextAlignment="Right" Padding="0,0,12,0" />
+                               HorizontalAlignment="Right" TextAlignment="Right" />
                     <TextBlock Grid.Column="2" x:Name="SurplusWeekly" Style="{StaticResource SubtitleTextBlockStyle}"
-                               HorizontalAlignment="Right" TextAlignment="Right" Padding="0,0,12,0" />
+                               HorizontalAlignment="Right" TextAlignment="Right" />
                 </Grid>
             </Border>
         </Grid>
