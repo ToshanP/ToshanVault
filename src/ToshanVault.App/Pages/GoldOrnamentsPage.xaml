@@ -37,7 +37,7 @@
 
         <TextBlock x:Name="PriceBanner" Grid.Row="1"
                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                   Text="Price not loaded yet — click ‘Refresh price’ to fetch live AUD/g (24K)." />
+                   Text="Price not loaded yet — click ‘Refresh price’ to fetch live $/g (24K)." />
 
         <AutoSuggestBox x:Name="SearchBox" Grid.Row="2"
                         PlaceholderText="Search description, purity, or notes…"

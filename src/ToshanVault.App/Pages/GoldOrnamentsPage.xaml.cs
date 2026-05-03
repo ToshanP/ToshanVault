@@ -83,7 +83,7 @@ public sealed partial class GoldOrnamentsPage : Page
         }
         foreach (var vm in ApplySort(rows)) _items.Add(vm);
         TotalsBanner.Text = ppg > 0
-            ? $"{_items.Count} items · {totalGrams:0.0} g total · est. AUD {totalAud:N0}"
+            ? $"{_items.Count} items · {totalGrams:0.0} g total · est. ${totalAud:N0}"
             : $"{_items.Count} items · {totalGrams:0.0} g total · price unavailable";
     }
 
@@ -132,7 +132,7 @@ public sealed partial class GoldOrnamentsPage : Page
     {
         if (_currentPrice is null || _currentPrice.PricePerGram24k <= 0)
         {
-            PriceBanner.Text = "Price not loaded yet — click ‘Refresh price’ to fetch live AUD/g (24K).";
+            PriceBanner.Text = "Price not loaded yet — click ‘Refresh price’ to fetch live $/g (24K).";
             return;
         }
         var ageMin = (DateTimeOffset.UtcNow - _currentPrice.FetchedAt).TotalMinutes;
@@ -140,7 +140,7 @@ public sealed partial class GoldOrnamentsPage : Page
                      : ageMin < 60 ? $"{(int)ageMin} min ago"
                      : $"{(int)(ageMin / 60)} h ago";
         PriceBanner.Text =
-            $"Live gold (24K): AUD {_currentPrice.PricePerGram24k:N2} / g · fetched {ageText}.";
+            $"Live gold (24K): ${_currentPrice.PricePerGram24k:N2} / g · fetched {ageText}.";
     }
 
     private void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
@@ -311,7 +311,7 @@ public sealed partial class GoldOrnamentsPage : Page
             if (_currentPrice is null)
                 ShowError("Could not fetch live gold price (network unavailable).");
             else
-                ShowInfo($"Updated · AUD {_currentPrice.PricePerGram24k:N2} per gram (24K).");
+                ShowInfo($"Updated · ${_currentPrice.PricePerGram24k:N2} per gram (24K).");
         }
         catch (Exception ex) { _log.Error(ex, "GoldOrnamentsPage handler failed"); ShowError(FormatError(ex)); }
         finally { _busy = false; RefreshPriceButton.IsEnabled = true; }
@@ -353,7 +353,7 @@ public sealed partial class GoldOrnamentsPage : Page
         {
             Source = source;
             ValueText = estimatedAud > 0
-                ? $"AUD {estimatedAud:N0}"
+                ? $"${estimatedAud:N0}"
                 : "—";
         }
     }
