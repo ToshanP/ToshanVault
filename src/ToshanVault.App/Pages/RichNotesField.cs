@@ -144,8 +144,12 @@ internal sealed class RichNotesField
 
         var headerRow = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 12,
+            // Stack vertically: label on top, toolbar (wraps if needed)
+            // underneath. The previous horizontal layout pushed the right-most
+            // toolbar controls (font family/size combos) past the dialog's
+            // right edge whenever the dialog wasn't extra-wide.
+            Orientation = Orientation.Vertical,
+            Spacing = 4,
             Margin = new Thickness(0, 0, 0, 4),
         };
         headerRow.Children.Add(label);
