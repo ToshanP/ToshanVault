@@ -34,7 +34,9 @@
         <InfoBar x:Name="InfoBar" Grid.Row="2" IsClosable="True" IsOpen="False" />
 
         <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
-            <GridView x:Name="PolicyList" SelectionMode="None" IsItemClickEnabled="False">
+            <GridView x:Name="PolicyList" SelectionMode="None" IsItemClickEnabled="False"
+                      CanReorderItems="True" CanDragItems="True" AllowDrop="True"
+                      DragItemsCompleted="PolicyList_DragItemsCompleted">
                 <GridView.ItemContainerStyle>
                     <Style TargetType="GridViewItem">
                         <Setter Property="Margin" Value="0,0,8,8" />

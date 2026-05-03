@@ -28,6 +28,7 @@ public sealed class InsuranceRepository
           owner           AS Owner,
           renewal_date    AS RenewalDate,
           vault_entry_id  AS VaultEntryId,
+          sort_order      AS SortOrder,
           created_at      AS CreatedAt,
           updated_at      AS UpdatedAt";
 
@@ -39,17 +40,26 @@ public sealed class InsuranceRepository
         if (e.CreatedAt == default) e.CreatedAt = DateTimeOffset.UtcNow;
         e.UpdatedAt = DateTimeOffset.UtcNow;
         await using var conn = _factory.Open();
+        if (e.SortOrder == 0)
+        {
+            // Append at the end of the user-defined order. Falls back to 1 on
+            // an empty table so the column never holds the seed default 0.
+            var maxOrder = await conn.ExecuteScalarAsync<long?>(new CommandDefinition(
+                "SELECT MAX(sort_order) FROM insurance;",
+                cancellationToken: ct)).ConfigureAwait(false) ?? 0;
+            e.SortOrder = (int)Math.Min(int.MaxValue, maxOrder + 1);
+        }
         var id = await conn.ExecuteScalarAsync<long>(new CommandDefinition(
             @"INSERT INTO insurance(insurer_company, policy_number, insurance_type, website, owner,
-                                    renewal_date, vault_entry_id, created_at, updated_at)
+                                    renewal_date, vault_entry_id, sort_order, created_at, updated_at)
               VALUES (@InsurerCompany, @PolicyNumber, @InsuranceType, @Website, @Owner,
-                      @RenewalDate, @VaultEntryId, @CreatedAt, @UpdatedAt);
+                      @RenewalDate, @VaultEntryId, @SortOrder, @CreatedAt, @UpdatedAt);
               SELECT last_insert_rowid();",
             new
             {
                 e.InsurerCompany, e.PolicyNumber, e.InsuranceType, e.Website, e.Owner,
                 RenewalDate = e.RenewalDate?.ToString("yyyy-MM-dd"),
-                e.VaultEntryId, e.CreatedAt, e.UpdatedAt,
+                e.VaultEntryId, e.SortOrder, e.CreatedAt, e.UpdatedAt,
             },
             cancellationToken: ct)).ConfigureAwait(false);
         e.Id = id;
@@ -98,15 +108,39 @@ public sealed class InsuranceRepository
             new { id }, cancellationToken: ct)).ConfigureAwait(false);
     }
 
-    /// <summary>Sorted by renewal date (nulls last) then insurer name so the
-    /// list naturally surfaces what's expiring soonest.</summary>
+    /// <summary>Sorted by the user-controlled drag-and-drop order. Ties
+    /// (legacy rows backfilled to sort_order = id) fall back to renewal date
+    /// then insurer name so newly migrated installs still surface what's
+    /// expiring soonest until the user reorders.</summary>
     public async Task<IReadOnlyList<Insurance>> GetAllAsync(CancellationToken ct = default)
     {
         await using var conn = _factory.Open();
         var rows = await conn.QueryAsync<Insurance>(new CommandDefinition(
             $@"SELECT {SelectColumns} FROM insurance
-               ORDER BY (renewal_date IS NULL), renewal_date, insurer_company;",
+               ORDER BY sort_order, (renewal_date IS NULL), renewal_date, insurer_company;",
             cancellationToken: ct)).ConfigureAwait(false);
         return rows.AsList();
+    }
+
+    /// <summary>
+    /// Persists drag-and-drop order. Caller supplies IDs in their desired
+    /// display order; this method writes sort_order = (index + 1) inside a
+    /// single transaction. IDs not in the list are untouched.
+    /// </summary>
+    public async Task UpdateSortOrderAsync(IReadOnlyList<long> orderedIds, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(orderedIds);
+        if (orderedIds.Count == 0) return;
+        await using var conn = _factory.Open();
+        await using var tx = (Microsoft.Data.Sqlite.SqliteTransaction)await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
+        var stamp = DateTimeOffset.UtcNow;
+        for (var i = 0; i < orderedIds.Count; i++)
+        {
+            await conn.ExecuteAsync(new CommandDefinition(
+                "UPDATE insurance SET sort_order=@order, updated_at=@stamp WHERE id=@id;",
+                new { order = i + 1, stamp, id = orderedIds[i] },
+                tx, cancellationToken: ct)).ConfigureAwait(false);
+        }
+        await tx.CommitAsync(ct).ConfigureAwait(false);
     }
 }

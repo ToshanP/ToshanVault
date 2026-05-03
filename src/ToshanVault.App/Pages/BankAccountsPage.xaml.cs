@@ -292,41 +292,48 @@ public sealed partial class BankAccountsPage : Page
     // Persists the new order back to the DB after the user drops a tile.
     // Reordering is disabled while a search filter is active because the
     // visible subset is not the full list and overwriting sort_order with
-    // partial-list indices would scramble hidden rows.
+    // partial-list indices would scramble hidden rows. Whole body wrapped in
+    // try/catch — `async void` exceptions tear down the WinUI app.
     private async void OpenList_DragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs args)
     {
-        if (!string.IsNullOrEmpty(_filter))
-        {
-            ShowError("Clear the search box before reordering.");
-            await ReloadAsync();
-            return;
-        }
         try
         {
-            // Reflect the new order back into _allOpen so subsequent filter
-            // toggles see the user's chosen order.
+            if (!string.IsNullOrEmpty(_filter))
+            {
+                ShowError("Clear the search box before reordering.");
+                await ReloadAsync();
+                return;
+            }
             _allOpen.Clear();
             _allOpen.AddRange(_open);
             await _bankRepo.UpdateSortOrderAsync(_open.Select(v => v.Id).ToList());
         }
-        catch (Exception ex) { ShowError($"Could not save order: {ex.Message}"); await ReloadAsync(); }
+        catch (Exception ex)
+        {
+            ShowError($"Could not save order: {ex.Message}");
+            try { await ReloadAsync(); } catch { /* best-effort */ }
+        }
     }
 
     private async void ClosedList_DragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs args)
     {
-        if (!string.IsNullOrEmpty(_filter))
-        {
-            ShowError("Clear the search box before reordering.");
-            await ReloadAsync();
-            return;
-        }
         try
         {
+            if (!string.IsNullOrEmpty(_filter))
+            {
+                ShowError("Clear the search box before reordering.");
+                await ReloadAsync();
+                return;
+            }
             _allClosed.Clear();
             _allClosed.AddRange(_closed);
             await _bankRepo.UpdateSortOrderAsync(_closed.Select(v => v.Id).ToList());
         }
-        catch (Exception ex) { ShowError($"Could not save order: {ex.Message}"); await ReloadAsync(); }
+        catch (Exception ex)
+        {
+            ShowError($"Could not save order: {ex.Message}");
+            try { await ReloadAsync(); } catch { /* best-effort */ }
+        }
     }
 }
 

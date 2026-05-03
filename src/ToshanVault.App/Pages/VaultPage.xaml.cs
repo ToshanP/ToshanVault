@@ -272,19 +272,23 @@ public sealed partial class VaultPage : Page
     // ---- Drag & drop reordering -------------------------------------------
     private async void EntryList_DragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs args)
     {
-        if (!string.IsNullOrEmpty(_filter))
-        {
-            ShowError("Clear the search box before reordering.");
-            await ReloadAsync();
-            return;
-        }
         try
         {
+            if (!string.IsNullOrEmpty(_filter))
+            {
+                ShowError("Clear the search box before reordering.");
+                await ReloadAsync();
+                return;
+            }
             _allEntries.Clear();
             _allEntries.AddRange(_entries);
             await _entryRepo.UpdateSortOrderAsync(_entries.Select(v => v.Id).ToList());
         }
-        catch (Exception ex) { ShowError($"Could not save order: {ex.Message}"); await ReloadAsync(); }
+        catch (Exception ex)
+        {
+            ShowError($"Could not save order: {ex.Message}");
+            try { await ReloadAsync(); } catch { /* best-effort */ }
+        }
     }
 }
 

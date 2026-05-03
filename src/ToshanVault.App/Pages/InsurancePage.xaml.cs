@@ -197,6 +197,32 @@ public sealed partial class InsurancePage : Page
         InfoBar.Message = msg;
         InfoBar.IsOpen = true;
     }
+
+    // ---- Drag & drop reordering -------------------------------------------
+    // Persists the new tile order to insurance.sort_order. Disabled while a
+    // search filter is active so we don't overwrite hidden rows' positions
+    // with partial-list indices. Whole body wrapped in try/catch because this
+    // is `async void` — an unhandled exception would tear down the app.
+    private async void PolicyList_DragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs args)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(_filter))
+            {
+                ShowError("Clear the search box before reordering.");
+                await ReloadAsync();
+                return;
+            }
+            _all.Clear();
+            _all.AddRange(_items);
+            await _repo.UpdateSortOrderAsync(_items.Select(v => v.Id).ToList());
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Could not save order: {ex.Message}");
+            try { await ReloadAsync(); } catch { /* swallowed: reload-on-failure is best effort */ }
+        }
+    }
 }
 
 public sealed class InsuranceVm

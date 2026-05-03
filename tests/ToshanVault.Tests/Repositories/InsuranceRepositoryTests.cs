@@ -1,3 +1,4 @@
+using Dapper;
 using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ToshanVault.Core.Models;
@@ -70,8 +71,12 @@ public class InsuranceRepositoryTests
     }
 
     [TestMethod]
-    public async Task GetAll_OrdersByRenewalDate_NullsLast()
+    public async Task GetAll_OrdersBySortOrder_ThenRenewalDateAsTieBreaker()
     {
+        // After migration 015 the primary sort is the user-controlled
+        // sort_order column. New inserts append at the end (max+1), so the
+        // natural order is insertion order. Renewal date / nulls-last only
+        // matters as a tie-breaker for legacy rows whose sort_order collides.
         using var f = await TestDbFactory.CreateMigratedAsync();
         var repo = new InsuranceRepository(f);
 
@@ -80,7 +85,7 @@ public class InsuranceRepositoryTests
         await repo.InsertAsync(new Insurance { InsurerCompany = "Soon",  RenewalDate = new DateOnly(2026, 1, 1) });
 
         var all = await repo.GetAllAsync();
-        all.Select(x => x.InsurerCompany).Should().Equal("Soon", "Late", "Z-no-date");
+        all.Select(x => x.InsurerCompany).Should().Equal("Z-no-date", "Late", "Soon");
     }
 
     [TestMethod]
@@ -134,6 +139,64 @@ public class InsuranceRepositoryTests
         var got = await insRepo.GetAsync(i.Id);
         got.Should().NotBeNull("deleting the linked vault_entry must not delete the insurance row");
         got!.VaultEntryId.Should().BeNull();
+    }
+
+    [TestMethod]
+    public async Task UpdateSortOrder_PersistsOrder_AndLeavesUnlistedRowsAlone()
+    {
+        using var f = await TestDbFactory.CreateMigratedAsync();
+        var repo = new InsuranceRepository(f);
+
+        var a = Sample("Aon",  "A"); await repo.InsertAsync(a);
+        var b = Sample("Bupa", "B"); await repo.InsertAsync(b);
+        var c = Sample("CGU",  "C"); await repo.InsertAsync(c);
+        var dExtra = Sample("Domino", "D"); await repo.InsertAsync(dExtra);
+        var dExtraSortBefore = (await repo.GetAsync(dExtra.Id))!.SortOrder;
+
+        // Reorder only a/b/c — d must keep its slot.
+        await repo.UpdateSortOrderAsync(new[] { c.Id, a.Id, b.Id });
+
+        var all = await repo.GetAllAsync();
+        // Three reordered rows come first (sort_order 1/2/3); d keeps its
+        // original sort_order (= its id, set by migration backfill on insert).
+        all.Take(3).Select(x => x.Id).Should().Equal(new[] { c.Id, a.Id, b.Id });
+        (await repo.GetAsync(dExtra.Id))!.SortOrder.Should().Be(dExtraSortBefore);
+    }
+
+    [TestMethod]
+    public async Task Migration015_Backfill_PreservesPriorRenewalDateOrdering()
+    {
+        // Simulates the pre-migration state by inserting rows then resetting
+        // sort_order to 0, and re-runs the same backfill statement migration
+        // 015 ships. Asserts the order matches the prior contract
+        // (renewal_date asc, nulls last). This is the reviewer's concern: we
+        // must not bury soon-due policies under id order on first migration.
+        using var f = await TestDbFactory.CreateMigratedAsync();
+        var repo = new InsuranceRepository(f);
+
+        await repo.InsertAsync(new Insurance { InsurerCompany = "Z-no-date", RenewalDate = null });
+        await repo.InsertAsync(new Insurance { InsurerCompany = "Late",  RenewalDate = new DateOnly(2027, 1, 1) });
+        await repo.InsertAsync(new Insurance { InsurerCompany = "Soon",  RenewalDate = new DateOnly(2026, 1, 1) });
+
+        await using var conn = f.Open();
+        // Reset to the post-ALTER, pre-backfill state.
+        await conn.ExecuteAsync("UPDATE insurance SET sort_order = 0;");
+        // Re-run the migration's backfill verbatim.
+        await conn.ExecuteAsync(@"
+            UPDATE insurance
+               SET sort_order = ranked.rn
+              FROM (
+                   SELECT id,
+                          ROW_NUMBER() OVER (
+                              ORDER BY (renewal_date IS NULL), renewal_date, insurer_company, id
+                          ) AS rn
+                     FROM insurance
+                   ) AS ranked
+             WHERE insurance.id = ranked.id
+               AND insurance.sort_order = 0;");
+
+        var all = await repo.GetAllAsync();
+        all.Select(x => x.InsurerCompany).Should().Equal("Soon", "Late", "Z-no-date");
     }
 }
 
