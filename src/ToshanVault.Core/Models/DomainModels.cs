@@ -251,3 +251,29 @@ public sealed class Insurance
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
+
+/// <summary>Per-owner insurance portal credential row. Each policy can have
+/// many credentials (one per family member). The encrypted fields live in the
+/// linked <see cref="VaultEntry"/>.</summary>
+public sealed class InsuranceCredential
+{
+    public long Id { get; set; }
+    public long InsuranceId { get; set; }
+    public string Owner { get; set; } = string.Empty;
+    public long VaultEntryId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+/// <summary>Per-owner web/vault login credential row. Each vault entry can
+/// have many credentials (one per family member). For migrated entries,
+/// <see cref="VaultEntryId"/> may equal the parent entry_id.</summary>
+public sealed class WebCredential
+{
+    public long Id { get; set; }
+    public long EntryId { get; set; }
+    public string Owner { get; set; } = string.Empty;
+    public long VaultEntryId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}

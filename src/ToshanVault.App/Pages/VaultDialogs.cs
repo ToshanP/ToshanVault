@@ -158,14 +158,18 @@ internal sealed class VaultCredentialsDialog : ContentDialog
     private readonly TextBox[] _q = new TextBox[WebCredentialsService.MaxQa];
     private readonly PasswordBox[] _a = new PasswordBox[WebCredentialsService.MaxQa];
 
-    public VaultCredentialsDialog(XamlRoot root, string subtitle, WebCredentialsModel model)
+    public bool DeleteRequested { get; private set; }
+
+    public VaultCredentialsDialog(XamlRoot root, string subtitle, string owner, WebCredentialsModel model, bool allowDelete)
     {
         XamlRoot = root;
         _model = model;
-        Title = "Login secrets · " + subtitle;
+        Title = $"Login secrets · {subtitle} · {owner}";
         PrimaryButtonText = "Save (encrypted)";
         CloseButtonText = "Cancel";
         DefaultButton = ContentDialogButton.Primary;
+        if (allowDelete)
+            SecondaryButtonText = "Delete credential";
 
         this.Resources["ContentDialogMaxHeight"] = 1080d;
         this.Resources["ContentDialogMaxWidth"]  = 720d;
@@ -203,5 +207,7 @@ internal sealed class VaultCredentialsDialog : ContentDialog
             for (var i = 0; i < WebCredentialsService.MaxQa; i++)
                 _model.Qa[i] = new QaPair(_q[i].Text, _a[i].Password);
         };
+
+        SecondaryButtonClick += (_, _) => { DeleteRequested = true; };
     }
 }

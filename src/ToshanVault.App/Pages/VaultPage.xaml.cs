@@ -21,6 +21,7 @@ public sealed partial class VaultPage : Page
 {
     private readonly VaultEntryRepository _entryRepo = AppHost.GetService<VaultEntryRepository>();
     private readonly WebCredentialsService _credService = AppHost.GetService<WebCredentialsService>();
+    private readonly WebCredentialRepository _credRepo = AppHost.GetService<WebCredentialRepository>();
     private readonly AttachmentService _attachments = AppHost.GetService<AttachmentService>();
     private readonly NavigationService _nav = AppHost.GetService<NavigationService>();
 
@@ -87,7 +88,8 @@ public sealed partial class VaultPage : Page
             {
                 ShowError($"Could not preview entry #{r.Id}: {ex.Message}");
             }
-            _allEntries.Add(new WebEntryVm(r, number, website));
+            var creds = await _credRepo.GetByEntryAsync(r.Id);
+            _allEntries.Add(new WebEntryVm(r, number, website, creds));
         }
         ApplyFilter();
     }
@@ -313,18 +315,55 @@ public sealed partial class VaultPage : Page
         finally { _busy = false; }
     }
 
-    // ---- Credentials -------------------------------------------------------
-    private async void Credentials_Click(object sender, RoutedEventArgs e)
+    // ---- Credentials (multi-owner) -----------------------------------------
+    private async void Credential_Click(object sender, RoutedEventArgs e)
     {
         if (_busy) return; _busy = true;
-        WebCredentialsModel? creds = null;
+        try
+        {
+            var avatar = (WebCredentialAvatarVm)((Button)sender).Tag;
+            await OpenCredentialDialogAsync(avatar.EntryId, avatar.Owner, avatar.VaultEntryId, avatar.EntryTitle);
+        }
+        catch (VaultLockedException) { _nav.NavigateToLogin(); }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async void AddCredential_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return; _busy = true;
         try
         {
             var id = (long)((Button)sender).Tag;
             var entry = await _entryRepo.GetAsync(id);
             if (entry is null) { ShowError("Entry not found."); await ReloadAsync(); return; }
 
-            var loaded = await _credService.LoadAsync(id);
+            var existingOwners = (await _credRepo.GetByEntryAsync(id))
+                .Select(c => c.Owner)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var available = WebCredentialsService.KnownOwners
+                .Where(o => !existingOwners.Contains(o))
+                .ToList();
+            if (available.Count == 0) { ShowInfo("All known owners already have a credential."); return; }
+
+            var picker = new OwnerPickerDialog(this.XamlRoot, available);
+            if (await picker.ShowAsync() != ContentDialogResult.Primary || picker.SelectedOwner is null) return;
+
+            await OpenCredentialDialogAsync(id, picker.SelectedOwner, vaultEntryId: null, entryTitle: entry.Name);
+        }
+        catch (VaultLockedException) { _nav.NavigateToLogin(); }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async Task OpenCredentialDialogAsync(long entryId, string owner, long? vaultEntryId, string entryTitle)
+    {
+        WebCredentialsModel? creds = null;
+        try
+        {
+            var loaded = vaultEntryId.HasValue
+                ? await _credService.LoadAsync(vaultEntryId.Value)
+                : new Dictionary<string, string>();
             creds = new WebCredentialsModel
             {
                 Username = loaded.GetValueOrDefault(WebCredentialsService.UsernameLabel, ""),
@@ -337,8 +376,38 @@ public sealed partial class VaultPage : Page
                     loaded.GetValueOrDefault($"{WebCredentialsService.AnswerLabelPrefix}{i + 1}", ""));
             }
 
-            var dlg = new VaultCredentialsDialog(this.XamlRoot, entry.Name, creds);
-            if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+            var dlg = new VaultCredentialsDialog(this.XamlRoot, entryTitle, owner, creds, allowDelete: vaultEntryId is not null);
+            var result = await dlg.ShowAsync();
+
+            if (dlg.DeleteRequested)
+            {
+                var confirm = new ContentDialog
+                {
+                    XamlRoot = this.XamlRoot,
+                    Title = $"Delete {owner} credential?",
+                    Content = new TextBlock
+                    {
+                        Text = $"All encrypted username/password/Q&A for {owner} on {entryTitle} will be permanently removed.",
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    PrimaryButtonText = "Delete",
+                    CloseButtonText = "Cancel",
+                    DefaultButton = ContentDialogButton.Close,
+                };
+                if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;
+
+                var rowToDelete = (await _credRepo.GetByEntryAsync(entryId))
+                    .FirstOrDefault(c => string.Equals(c.Owner, owner, StringComparison.OrdinalIgnoreCase));
+                if (rowToDelete is not null)
+                {
+                    await _credRepo.DeleteAsync(rowToDelete.Id);
+                    ShowInfo($"Deleted {owner} credential for {entryTitle}.");
+                    await ReloadAsync();
+                }
+                return;
+            }
+
+            if (result != ContentDialogResult.Primary) return;
 
             var specs = new List<WebCredentialsService.FieldSpec>(2 + WebCredentialsService.MaxQa * 2)
             {
@@ -348,14 +417,14 @@ public sealed partial class VaultPage : Page
             for (var i = 0; i < WebCredentialsService.MaxQa; i++)
             {
                 specs.Add(new($"{WebCredentialsService.QuestionLabelPrefix}{i + 1}", creds.Qa[i].Question, false));
-                specs.Add(new($"{WebCredentialsService.AnswerLabelPrefix}{i + 1}",   creds.Qa[i].Answer,   true));
+                specs.Add(new($"{WebCredentialsService.AnswerLabelPrefix}{i + 1}", creds.Qa[i].Answer, true));
             }
 
-            await _credService.SaveAsync(id, specs);
-            ShowInfo("Credentials saved (encrypted in vault).");
+            await _credService.SaveCredentialsAsync(entryId, owner, $"{entryTitle} ({owner})", specs);
+            ShowInfo($"Saved {owner} credential (encrypted in vault).");
+            await ReloadAsync();
         }
         catch (VaultLockedException) { _nav.NavigateToLogin(); }
-        catch (Exception ex) { ShowError(ex.Message); }
         finally
         {
             if (creds is not null)
@@ -363,7 +432,6 @@ public sealed partial class VaultPage : Page
                 creds.Username = creds.Password = string.Empty;
                 for (var i = 0; i < creds.Qa.Length; i++) creds.Qa[i] = new QaPair("", "");
             }
-            _busy = false;
         }
     }
 
@@ -532,7 +600,7 @@ internal sealed class VaultGroupVm : INotifyPropertyChanged
 
 public sealed class WebEntryVm
 {
-    public WebEntryVm(VaultEntry e, string? number = null, string? website = null)
+    public WebEntryVm(VaultEntry e, string? number = null, string? website = null, IReadOnlyList<WebCredential>? creds = null)
     {
         Id = e.Id;
         Name = e.Name;
@@ -541,12 +609,17 @@ public sealed class WebEntryVm
         SortOrder = e.SortOrder;
         Number = number;
         Website = website;
-        // Visibility helpers — XAML can't easily collapse on null/empty without
-        // a converter, and we'd rather not pull in a converter for two fields.
         HasNumber  = !string.IsNullOrWhiteSpace(number);
         HasWebsite = !string.IsNullOrWhiteSpace(website);
         NumberVisibility  = HasNumber  ? Visibility.Visible : Visibility.Collapsed;
         WebsiteVisibility = HasWebsite ? Visibility.Visible : Visibility.Collapsed;
+
+        var credList = creds ?? Array.Empty<WebCredential>();
+        Credentials = new ObservableCollection<WebCredentialAvatarVm>(
+            credList.Select(c => new WebCredentialAvatarVm(e.Id, e.Name, c)));
+        var existing = credList.Select(c => c.Owner).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        CanAddCredentialVisibility = WebCredentialsService.KnownOwners.Any(o => !existing.Contains(o))
+            ? Visibility.Visible : Visibility.Collapsed;
     }
     public long Id { get; }
     public string Name { get; }
@@ -559,4 +632,25 @@ public sealed class WebEntryVm
     public bool HasWebsite { get; }
     public Visibility NumberVisibility { get; }
     public Visibility WebsiteVisibility { get; }
+    public ObservableCollection<WebCredentialAvatarVm> Credentials { get; }
+    public Visibility CanAddCredentialVisibility { get; }
+}
+
+public sealed class WebCredentialAvatarVm
+{
+    public WebCredentialAvatarVm(long entryId, string entryTitle, WebCredential c)
+    {
+        EntryId = entryId;
+        EntryTitle = entryTitle;
+        CredentialId = c.Id;
+        Owner = c.Owner;
+        VaultEntryId = c.VaultEntryId;
+        Initial = string.IsNullOrEmpty(c.Owner) ? "?" : char.ToUpperInvariant(c.Owner[0]).ToString();
+    }
+    public long EntryId { get; }
+    public string EntryTitle { get; }
+    public long CredentialId { get; }
+    public string Owner { get; }
+    public long VaultEntryId { get; }
+    public string Initial { get; }
 }

@@ -86,10 +86,29 @@
                                             Width="32" Height="32" Padding="0">
                                         <FontIcon Glyph="&#xE70B;" FontSize="14" />
                                     </Button>
-                                    <Button Click="Credentials_Click" Tag="{Binding Id}"
-                                            ToolTipService.ToolTip="Login credentials"
-                                            Width="32" Height="32" Padding="0">
-                                        <FontIcon Glyph="&#xE8D7;" FontSize="14" />
+                                    <ItemsControl ItemsSource="{Binding Credentials}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal" Spacing="4" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Button Click="Credential_Click" Tag="{Binding}"
+                                                        ToolTipService.ToolTip="{Binding Owner}"
+                                                        Width="32" Height="32" Padding="0"
+                                                        CornerRadius="16">
+                                                    <TextBlock Text="{Binding Initial}"
+                                                               FontWeight="SemiBold" FontSize="14" />
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <Button Click="AddCredential_Click" Tag="{Binding Id}"
+                                            ToolTipService.ToolTip="Add login for another owner"
+                                            Width="32" Height="32" Padding="0"
+                                            Visibility="{Binding CanAddCredentialVisibility}">
+                                        <FontIcon Glyph="&#xE710;" FontSize="14" />
                                     </Button>
                                     <Button Click="Delete_Click" Tag="{Binding Id}"
                                             ToolTipService.ToolTip="Delete policy"

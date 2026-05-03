@@ -20,6 +20,7 @@ public sealed partial class InsurancePage : Page
 {
     private readonly InsuranceRepository _repo = AppHost.GetService<InsuranceRepository>();
     private readonly InsuranceCredentialsService _credService = AppHost.GetService<InsuranceCredentialsService>();
+    private readonly InsuranceCredentialRepository _credRepo = AppHost.GetService<InsuranceCredentialRepository>();
     private readonly AttachmentService _attachments = AppHost.GetService<AttachmentService>();
     private readonly NavigationService _nav = AppHost.GetService<NavigationService>();
 
@@ -49,7 +50,11 @@ public sealed partial class InsurancePage : Page
     {
         var rows = await _repo.GetAllAsync();
         _all.Clear();
-        foreach (var r in rows) _all.Add(new InsuranceVm(r));
+        foreach (var r in rows)
+        {
+            var creds = await _credRepo.GetByInsuranceAsync(r.Id);
+            _all.Add(new InsuranceVm(r, creds));
+        }
         ApplyFilter();
     }
 
@@ -136,41 +141,122 @@ public sealed partial class InsurancePage : Page
         finally { _busy = false; }
     }
 
-    // ---- Credentials -------------------------------------------------------
-    private async void Credentials_Click(object sender, RoutedEventArgs e)
+    // ---- Credentials (multi-owner) -----------------------------------------
+    private async void Credential_Click(object sender, RoutedEventArgs e)
     {
         if (_busy) return; _busy = true;
-        InsuranceCredentialsModel? creds = null;
+        try
+        {
+            var avatar = (InsuranceCredentialAvatarVm)((Button)sender).Tag;
+            await OpenCredentialDialogAsync(avatar.InsuranceId, avatar.Owner, avatar.VaultEntryId, avatar.InsuranceTitle);
+        }
+        catch (VaultLockedException) { _nav.NavigateToLogin(); }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async void AddCredential_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return; _busy = true;
         try
         {
             var id = (long)((Button)sender).Tag;
             var ins = await _repo.GetAsync(id);
             if (ins is null) { ShowError("Policy not found."); await ReloadAsync(); return; }
 
-            var loaded = await _credService.LoadAsync(id);
+            var existingOwners = (await _credRepo.GetByInsuranceAsync(id))
+                .Select(c => c.Owner)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var available = InsuranceCredentialsService.KnownOwners
+                .Where(o => !existingOwners.Contains(o))
+                .ToList();
+            if (available.Count == 0) { ShowInfo("All known owners already have a credential."); return; }
+
+            var picker = new OwnerPickerDialog(this.XamlRoot, available);
+            if (await picker.ShowAsync() != ContentDialogResult.Primary || picker.SelectedOwner is null) return;
+
+            await OpenCredentialDialogAsync(id, picker.SelectedOwner, vaultEntryId: null,
+                                            insuranceTitle: ins.InsurerCompany);
+        }
+        catch (VaultLockedException) { _nav.NavigateToLogin(); }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async Task OpenCredentialDialogAsync(long insuranceId, string owner, long? vaultEntryId, string insuranceTitle)
+    {
+        InsuranceCredentialsModel? creds = null;
+        try
+        {
+            var loaded = await _credService.LoadAsync(vaultEntryId);
             creds = new InsuranceCredentialsModel
             {
                 Username = loaded.GetValueOrDefault(InsuranceCredentialsService.UsernameLabel, ""),
                 Password = loaded.GetValueOrDefault(InsuranceCredentialsService.PasswordLabel, ""),
             };
+            for (var i = 0; i < InsuranceCredentialsService.MaxQa; i++)
+            {
+                creds.Qa[i] = new QaPair(
+                    loaded.GetValueOrDefault($"{InsuranceCredentialsService.QuestionLabelPrefix}{i + 1}", ""),
+                    loaded.GetValueOrDefault($"{InsuranceCredentialsService.AnswerLabelPrefix}{i + 1}", ""));
+            }
 
-            var dlg = new InsuranceCredentialsDialog(this.XamlRoot, ins.InsurerCompany, creds);
-            if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+            var dlg = new InsuranceCredentialsDialog(this.XamlRoot, insuranceTitle, owner, creds, allowDelete: vaultEntryId is not null);
+            var result = await dlg.ShowAsync();
 
-            var specs = new List<InsuranceCredentialsService.FieldSpec>
+            if (dlg.DeleteRequested)
+            {
+                var confirm = new ContentDialog
+                {
+                    XamlRoot = this.XamlRoot,
+                    Title = $"Delete {owner} credential?",
+                    Content = new TextBlock
+                    {
+                        Text = $"All encrypted username/password/Q&A for {owner} on {insuranceTitle} will be permanently removed.",
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    PrimaryButtonText = "Delete",
+                    CloseButtonText = "Cancel",
+                    DefaultButton = ContentDialogButton.Close,
+                };
+                if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;
+
+                var rowToDelete = (await _credRepo.GetByInsuranceAsync(insuranceId))
+                    .FirstOrDefault(c => string.Equals(c.Owner, owner, StringComparison.OrdinalIgnoreCase));
+                if (rowToDelete is not null)
+                {
+                    await _credRepo.DeleteAsync(rowToDelete.Id);
+                    ShowInfo($"Deleted {owner} credential for {insuranceTitle}.");
+                    await ReloadAsync();
+                }
+                return;
+            }
+
+            if (result != ContentDialogResult.Primary) return;
+
+            var specs = new List<InsuranceCredentialsService.FieldSpec>(2 + InsuranceCredentialsService.MaxQa * 2)
             {
                 new(InsuranceCredentialsService.UsernameLabel, creds.Username, false),
                 new(InsuranceCredentialsService.PasswordLabel, creds.Password, true),
             };
-            await _credService.SaveAsync(id, specs);
-            ShowInfo("Credentials saved (encrypted in vault).");
+            for (var i = 0; i < InsuranceCredentialsService.MaxQa; i++)
+            {
+                specs.Add(new($"{InsuranceCredentialsService.QuestionLabelPrefix}{i + 1}", creds.Qa[i].Question, false));
+                specs.Add(new($"{InsuranceCredentialsService.AnswerLabelPrefix}{i + 1}", creds.Qa[i].Answer, true));
+            }
+
+            await _credService.SaveAsync(insuranceId, owner, $"{insuranceTitle} ({owner})", specs);
+            ShowInfo($"Saved {owner} credential (encrypted in vault).");
+            await ReloadAsync();
         }
         catch (VaultLockedException) { _nav.NavigateToLogin(); }
-        catch (Exception ex) { ShowError(ex.Message); }
         finally
         {
-            if (creds is not null) { creds.Username = creds.Password = string.Empty; }
-            _busy = false;
+            if (creds is not null)
+            {
+                creds.Username = creds.Password = string.Empty;
+                for (var i = 0; i < creds.Qa.Length; i++) creds.Qa[i] = new QaPair("", "");
+            }
         }
     }
 
@@ -252,7 +338,7 @@ public sealed partial class InsurancePage : Page
 
 public sealed class InsuranceVm
 {
-    public InsuranceVm(Insurance i)
+    public InsuranceVm(Insurance i, IReadOnlyList<InsuranceCredential> creds)
     {
         Id = i.Id;
         InsurerCompany = i.InsurerCompany;
@@ -281,7 +367,6 @@ public sealed class InsuranceVm
                 _    => $"Renews in {days}d ({d:yyyy-MM-dd})",
             };
             RenewalVisibility = Visibility.Visible;
-            // Red within 30 days (incl. overdue), amber 31-60, default beyond.
             RenewalBrush = days <= 30
                 ? new SolidColorBrush(Microsoft.UI.Colors.IndianRed)
                 : days <= 60
@@ -296,6 +381,12 @@ public sealed class InsuranceVm
         }
 
         WebsiteVisibility = string.IsNullOrWhiteSpace(Website) ? Visibility.Collapsed : Visibility.Visible;
+
+        Credentials = new ObservableCollection<InsuranceCredentialAvatarVm>(
+            creds.Select(c => new InsuranceCredentialAvatarVm(i.Id, i.InsurerCompany, c)));
+        var existing = creds.Select(c => c.Owner).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        CanAddCredentialVisibility = InsuranceCredentialsService.KnownOwners.Any(o => !existing.Contains(o))
+            ? Visibility.Visible : Visibility.Collapsed;
     }
 
     public long Id { get; }
@@ -309,4 +400,25 @@ public sealed class InsuranceVm
     public Visibility RenewalVisibility { get; }
     public Brush RenewalBrush { get; }
     public Visibility WebsiteVisibility { get; }
+    public ObservableCollection<InsuranceCredentialAvatarVm> Credentials { get; }
+    public Visibility CanAddCredentialVisibility { get; }
+}
+
+public sealed class InsuranceCredentialAvatarVm
+{
+    public InsuranceCredentialAvatarVm(long insuranceId, string insuranceTitle, InsuranceCredential c)
+    {
+        InsuranceId = insuranceId;
+        InsuranceTitle = insuranceTitle;
+        CredentialId = c.Id;
+        Owner = c.Owner;
+        VaultEntryId = c.VaultEntryId;
+        Initial = string.IsNullOrEmpty(c.Owner) ? "?" : char.ToUpperInvariant(c.Owner[0]).ToString();
+    }
+    public long InsuranceId { get; }
+    public string InsuranceTitle { get; }
+    public long CredentialId { get; }
+    public string Owner { get; }
+    public long VaultEntryId { get; }
+    public string Initial { get; }
 }

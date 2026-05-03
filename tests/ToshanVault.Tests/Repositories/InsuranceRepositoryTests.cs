@@ -1,3 +1,4 @@
+using System.Linq;
 using Dapper;
 using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -102,20 +103,21 @@ public class InsuranceRepositoryTests
         var creds   = new InsuranceCredentialsService(f, vault, entries, insRepo);
 
         var i = Sample(); await insRepo.InsertAsync(i);
-        await creds.SaveAsync(i.Id, new[]
+        await creds.SaveAsync(i.Id, "Toshan", "Test Policy (Toshan)", new[]
         {
             new InsuranceCredentialsService.FieldSpec(InsuranceCredentialsService.UsernameLabel, "user1", false),
             new InsuranceCredentialsService.FieldSpec(InsuranceCredentialsService.PasswordLabel, "pass1", true),
         });
 
-        var afterSave = await insRepo.GetAsync(i.Id);
-        afterSave!.VaultEntryId.Should().NotBeNull();
-        var entryId = afterSave.VaultEntryId!.Value;
+        var credRepo = new InsuranceCredentialRepository(f);
+        var credRows = await credRepo.GetByInsuranceAsync(i.Id);
+        credRows.Should().HaveCount(1);
+        var credEntryId = credRows[0].VaultEntryId;
 
         await insRepo.DeleteAsync(i.Id);
 
-        var orphan = await entries.GetAsync(entryId);
-        orphan.Should().BeNull("trg_insurance_after_delete must remove the credentials vault_entry");
+        var orphan = await entries.GetAsync(credEntryId);
+        orphan.Should().BeNull("cascade triggers must remove the credential's vault_entry when the insurance row is deleted");
     }
 
     [TestMethod]
@@ -219,21 +221,22 @@ public class InsuranceCredentialsServiceTests
         var i = new Insurance { InsurerCompany = "NRMA", InsuranceType = "Car" };
         await insRepo.InsertAsync(i);
 
-        await svc.SaveAsync(i.Id, new[]
+        await svc.SaveAsync(i.Id, "Toshan", "NRMA (Toshan)", new[]
         {
             new InsuranceCredentialsService.FieldSpec(InsuranceCredentialsService.UsernameLabel, "u", false),
             new InsuranceCredentialsService.FieldSpec(InsuranceCredentialsService.PasswordLabel, "p", true),
             new InsuranceCredentialsService.FieldSpec(InsuranceCredentialsService.NotesLabel,    "n", false),
         });
 
-        var loaded = await svc.LoadAsync(i.Id);
+        var credRow = (await new InsuranceCredentialRepository(f).GetByInsuranceAsync(i.Id)).First();
+        var loaded = await svc.LoadAsync(credRow.VaultEntryId);
         loaded[InsuranceCredentialsService.UsernameLabel].Should().Be("u");
         loaded[InsuranceCredentialsService.PasswordLabel].Should().Be("p");
         loaded[InsuranceCredentialsService.NotesLabel].Should().Be("n");
     }
 
     [TestMethod]
-    public async Task Save_AllEmpty_OnFreshPolicy_DoesNotCreateVaultEntry()
+    public async Task Save_AllEmpty_CreatesCredentialRowButNoFields()
     {
         using var f = await TestDbFactory.CreateMigratedAsync();
         var meta = new MetaRepository(f);
@@ -248,18 +251,20 @@ public class InsuranceCredentialsServiceTests
         var i = new Insurance { InsurerCompany = "AIA" };
         await insRepo.InsertAsync(i);
 
-        await svc.SaveAsync(i.Id, new[]
+        await svc.SaveAsync(i.Id, "Toshan", "AIA (Toshan)", new[]
         {
             new InsuranceCredentialsService.FieldSpec(InsuranceCredentialsService.UsernameLabel, "", false),
             new InsuranceCredentialsService.FieldSpec(InsuranceCredentialsService.PasswordLabel, null, true),
         });
 
-        var got = await insRepo.GetAsync(i.Id);
-        got!.VaultEntryId.Should().BeNull("saving only empty fields must not lazily create a vault_entry");
+        var credRows = await new InsuranceCredentialRepository(f).GetByInsuranceAsync(i.Id);
+        credRows.Should().HaveCount(1, "credential row is always created for (insurance, owner)");
+        var loaded = await svc.LoadAsync(credRows[0].VaultEntryId);
+        loaded.Should().BeEmpty("saving only empty fields should produce no stored vault_field rows");
     }
 
     [TestMethod]
-    public async Task LoadLabels_ReturnsOnlyRequested()
+    public async Task Load_ReturnsAllSavedFields()
     {
         using var f = await TestDbFactory.CreateMigratedAsync();
         var meta = new MetaRepository(f);
@@ -273,15 +278,18 @@ public class InsuranceCredentialsServiceTests
 
         var i = new Insurance { InsurerCompany = "Allianz" };
         await insRepo.InsertAsync(i);
-        await svc.SaveAsync(i.Id, new[]
+        await svc.SaveAsync(i.Id, "Toshan", "Allianz (Toshan)", new[]
         {
             new InsuranceCredentialsService.FieldSpec(InsuranceCredentialsService.UsernameLabel, "u", false),
             new InsuranceCredentialsService.FieldSpec(InsuranceCredentialsService.PasswordLabel, "p", true),
             new InsuranceCredentialsService.FieldSpec(InsuranceCredentialsService.NotesLabel,    "n", false),
         });
 
-        var loaded = await svc.LoadLabelsAsync(i.Id, new[] { InsuranceCredentialsService.NotesLabel });
-        loaded.Should().HaveCount(1);
+        var credRow = (await new InsuranceCredentialRepository(f).GetByInsuranceAsync(i.Id)).First();
+        var loaded = await svc.LoadAsync(credRow.VaultEntryId);
+        loaded.Should().ContainKey(InsuranceCredentialsService.UsernameLabel);
+        loaded.Should().ContainKey(InsuranceCredentialsService.PasswordLabel);
+        loaded.Should().ContainKey(InsuranceCredentialsService.NotesLabel);
         loaded[InsuranceCredentialsService.NotesLabel].Should().Be("n");
     }
 }

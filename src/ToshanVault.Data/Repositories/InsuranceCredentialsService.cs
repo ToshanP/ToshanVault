@@ -8,15 +8,10 @@ using ToshanVault.Data.Schema;
 namespace ToshanVault.Data.Repositories;
 
 /// <summary>
-/// Encrypted credentials + notes for an <see cref="Insurance"/> policy. Backed
-/// by a vault_entry of kind <c>insurance_login</c> linked from
-/// <see cref="Insurance.VaultEntryId"/>; vault_field rows hold the actual
-/// AES-GCM-encrypted blobs under labels namespaced by <see cref="LabelPrefix"/>.
-///
-/// Single-credential model (one username/password/notes per policy). For
-/// joint policies we considered multi-owner like bank accounts but it adds
-/// significant UI weight for a relatively rare case — defer until a real
-/// example surfaces.
+/// Atomic save of insurance portal credentials for one (insurance, owner) pair.
+/// Mirrors <see cref="BankCredentialsService"/>: wraps insurance_credential +
+/// vault_entry creation/linking + per-field upsert/delete in a single SQLite
+/// transaction. All field labels are namespaced under <see cref="LabelPrefix"/>.
 /// </summary>
 public sealed class InsuranceCredentialsService
 {
@@ -24,10 +19,15 @@ public sealed class InsuranceCredentialsService
     public const string UsernameLabel  = LabelPrefix + "username";
     public const string PasswordLabel  = LabelPrefix + "password";
     public const string NotesLabel     = LabelPrefix + "notes";
+    public const string QuestionLabelPrefix = LabelPrefix + "q";
+    public const string AnswerLabelPrefix   = LabelPrefix + "a";
+    public const int MaxQa = 10;
+
+    /// <summary>Fixed list of owner labels offered in the UI dropdown.</summary>
+    public static readonly IReadOnlyList<string> KnownOwners = BankCredentialsService.KnownOwners;
 
     private readonly IDbConnectionFactory _factory;
     private readonly Vault _vault;
-    private readonly VaultEntryRepository _entries;
     private readonly InsuranceRepository _insRepo;
 
     public InsuranceCredentialsService(
@@ -39,58 +39,25 @@ public sealed class InsuranceCredentialsService
         DapperSetup.EnsureInitialised();
         _factory = factory ?? throw new ArgumentNullException(nameof(factory));
         _vault   = vault   ?? throw new ArgumentNullException(nameof(vault));
-        _entries = entries ?? throw new ArgumentNullException(nameof(entries));
         _insRepo = insRepo ?? throw new ArgumentNullException(nameof(insRepo));
+        // entries kept for signature compat; not needed in new multi-owner flow
     }
 
     public sealed record FieldSpec(string Label, string? Value, bool IsSecret);
 
-    /// <summary>Loads decrypted insurance.* fields for the policy. Returns an
-    /// empty dict when the policy has no credentials entry yet.</summary>
-    public async Task<IReadOnlyDictionary<string, string>> LoadAsync(long insuranceId, CancellationToken ct = default)
-    {
-        var ins = await _insRepo.GetAsync(insuranceId, ct).ConfigureAwait(false)
-                  ?? throw new InvalidOperationException($"Insurance {insuranceId} not found.");
-        if (ins.VaultEntryId is null) return new Dictionary<string, string>(StringComparer.Ordinal);
-
-        return await LoadByEntryAsync(ins.VaultEntryId.Value, ct).ConfigureAwait(false);
-    }
-
-    /// <summary>Loads only the requested labels for tile previews so we don't
-    /// pull username/password into memory just to render a Notes excerpt or
-    /// vice versa. Mirrors the pattern in <see cref="WebCredentialsService.LoadLabelsAsync"/>.</summary>
-    public async Task<IReadOnlyDictionary<string, string>> LoadLabelsAsync(
-        long insuranceId, IReadOnlyCollection<string> labels, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(labels);
-        if (labels.Count == 0) return new Dictionary<string, string>(StringComparer.Ordinal);
-
-        var ins = await _insRepo.GetAsync(insuranceId, ct).ConfigureAwait(false)
-                  ?? throw new InvalidOperationException($"Insurance {insuranceId} not found.");
-        if (ins.VaultEntryId is null) return new Dictionary<string, string>(StringComparer.Ordinal);
-
-        return await LoadInternalAsync(ins.VaultEntryId.Value, labels, ct).ConfigureAwait(false);
-    }
-
-    private async Task<IReadOnlyDictionary<string, string>> LoadByEntryAsync(long entryId, CancellationToken ct)
-        => await LoadInternalAsync(entryId, labelFilter: null, ct).ConfigureAwait(false);
-
-    private async Task<IReadOnlyDictionary<string, string>> LoadInternalAsync(
-        long entryId, IReadOnlyCollection<string>? labelFilter, CancellationToken ct)
+    /// <summary>Decrypted credential fields keyed by namespaced label for
+    /// the given vault_entry. Returns empty when the entry id is null.</summary>
+    public async Task<IReadOnlyDictionary<string, string>> LoadAsync(long? vaultEntryId, CancellationToken ct = default)
     {
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (vaultEntryId is null) return result;
+
         await using var conn = _factory.Open();
-        var rows = labelFilter is null
-            ? await conn.QueryAsync<VaultFieldRow>(new CommandDefinition(
-                @"SELECT id, entry_id, label, value_enc, iv, tag, is_secret
-                  FROM vault_field WHERE entry_id=@entryId AND label LIKE @prefix;",
-                new { entryId, prefix = LabelPrefix + "%" },
-                cancellationToken: ct)).ConfigureAwait(false)
-            : await conn.QueryAsync<VaultFieldRow>(new CommandDefinition(
-                @"SELECT id, entry_id, label, value_enc, iv, tag, is_secret
-                  FROM vault_field WHERE entry_id=@entryId AND label IN @labels;",
-                new { entryId, labels = labelFilter },
-                cancellationToken: ct)).ConfigureAwait(false);
+        var rows = await conn.QueryAsync<VaultFieldRow>(new CommandDefinition(
+            @"SELECT id, entry_id, label, value_enc, iv, tag, is_secret
+              FROM vault_field WHERE entry_id=@entryId AND label LIKE @prefix;",
+            new { entryId = vaultEntryId.Value, prefix = LabelPrefix + "%" },
+            cancellationToken: ct)).ConfigureAwait(false);
 
         foreach (var row in rows)
         {
@@ -101,41 +68,22 @@ public sealed class InsuranceCredentialsService
         return result;
     }
 
-    /// <summary>Persists username / password / notes for a policy. Auto-creates
-    /// the underlying vault_entry on first save and back-fills
-    /// <see cref="Insurance.VaultEntryId"/>. Empty values delete the field
-    /// rather than store empty encrypted blobs.</summary>
-    public async Task SaveAsync(long insuranceId, IReadOnlyList<FieldSpec> fields, CancellationToken ct = default)
+    /// <summary>
+    /// Persist all credential fields for one (insurance, owner) pair in a
+    /// single transaction. Creates the insurance_credential row + its
+    /// vault_entry on first save (idempotent on the unique key).
+    /// </summary>
+    /// <returns>The vault_entry id used for this credential.</returns>
+    public async Task<long> SaveAsync(
+        long insuranceId,
+        string owner,
+        string entryName,
+        IReadOnlyList<FieldSpec> fields,
+        CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(fields);
+        if (string.IsNullOrWhiteSpace(owner)) throw new ArgumentException("Owner required.", nameof(owner));
 
-        var ins = await _insRepo.GetAsync(insuranceId, ct).ConfigureAwait(false)
-                  ?? throw new InvalidOperationException($"Insurance {insuranceId} not found.");
-
-        // Lazy-create the credentials entry the first time we actually save
-        // anything non-empty. This keeps the vault clean of orphan entries
-        // when the user only ever fills in display fields.
-        var hasAny = fields.Any(f => !string.IsNullOrEmpty(f.Value));
-        long entryId;
-        if (ins.VaultEntryId is null)
-        {
-            if (!hasAny) return; // nothing to write, nothing to create
-            var entry = new VaultEntry
-            {
-                Kind = Insurance.CredentialsEntryKind,
-                Name = ins.InsurerCompany +
-                    (string.IsNullOrWhiteSpace(ins.PolicyNumber) ? "" : " · " + ins.PolicyNumber),
-            };
-            entryId = await _entries.InsertAsync(entry, ct).ConfigureAwait(false);
-            ins.VaultEntryId = entryId;
-            await _insRepo.UpdateAsync(ins, ct).ConfigureAwait(false);
-        }
-        else
-        {
-            entryId = ins.VaultEntryId.Value;
-        }
-
-        // Encrypt outside the transaction (fast-fail on lock; minimises hold time).
         var sealedFields = new List<(string Label, AesGcmCrypto.Sealed Sealed, bool HasValue, bool IsSecret, byte[]? Plaintext)>(fields.Count);
         try
         {
@@ -146,21 +94,65 @@ public sealed class InsuranceCredentialsService
                     sealedFields.Add((f.Label, default, false, f.IsSecret, null));
                     continue;
                 }
-                var pt = Encoding.UTF8.GetBytes(f.Value);
-                var blob = _vault.EncryptField(pt);
-                sealedFields.Add((f.Label, blob, true, f.IsSecret, pt));
+                byte[]? pt = null;
+                try
+                {
+                    pt = Encoding.UTF8.GetBytes(f.Value);
+                    var blob = _vault.EncryptField(pt);
+                    sealedFields.Add((f.Label, blob, true, f.IsSecret, pt));
+                    pt = null;
+                }
+                finally
+                {
+                    if (pt is not null) CryptographicOperations.ZeroMemory(pt);
+                }
             }
 
             await using var conn = _factory.Open();
             await using var tx = (Microsoft.Data.Sqlite.SqliteTransaction)
                 await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
 
-            // Re-validate the entry still exists in case something deleted it
-            // between our auto-create above and now (defence-in-depth).
-            var exists = await conn.ExecuteScalarAsync<long>(new CommandDefinition(
-                "SELECT COUNT(1) FROM vault_entry WHERE id=@id;",
-                new { id = entryId }, transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
-            if (exists != 1) throw new InvalidOperationException($"VaultEntry {entryId} not found.");
+            var insExists = await conn.ExecuteScalarAsync<long>(new CommandDefinition(
+                "SELECT COUNT(1) FROM insurance WHERE id=@id;",
+                new { id = insuranceId }, transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
+            if (insExists == 0) throw new InvalidOperationException($"Insurance {insuranceId} not found.");
+
+            var existing = await conn.QuerySingleOrDefaultAsync<(long CredId, long EntryId)?>(new CommandDefinition(
+                @"SELECT id AS CredId, vault_entry_id AS EntryId
+                  FROM insurance_credential
+                  WHERE insurance_id=@id AND owner=@owner;",
+                new { id = insuranceId, owner }, transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
+
+            long entryId;
+            if (existing is { } pair)
+            {
+                var entryExists = await conn.ExecuteScalarAsync<long>(new CommandDefinition(
+                    "SELECT COUNT(1) FROM vault_entry WHERE id=@id;",
+                    new { id = pair.EntryId }, transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
+                if (entryExists == 1)
+                {
+                    entryId = pair.EntryId;
+                }
+                else
+                {
+                    entryId = await CreateVaultEntryAsync(conn, tx, entryName, ct).ConfigureAwait(false);
+                    await conn.ExecuteAsync(new CommandDefinition(
+                        "UPDATE insurance_credential SET vault_entry_id=@e, updated_at=@n WHERE id=@id;",
+                        new { e = entryId, n = DateTimeOffset.UtcNow, id = pair.CredId },
+                        transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
+                }
+            }
+            else
+            {
+                entryId = await CreateVaultEntryAsync(conn, tx, entryName, ct).ConfigureAwait(false);
+                var now = DateTimeOffset.UtcNow;
+                await conn.ExecuteAsync(new CommandDefinition(
+                    @"INSERT INTO insurance_credential
+                        (insurance_id, owner, vault_entry_id, created_at, updated_at)
+                      VALUES (@a, @o, @e, @n, @n);",
+                    new { a = insuranceId, o = owner, e = entryId, n = now },
+                    transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
+            }
 
             foreach (var sf in sealedFields)
             {
@@ -202,6 +194,7 @@ public sealed class InsuranceCredentialsService
                 transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
 
             await tx.CommitAsync(ct).ConfigureAwait(false);
+            return entryId;
         }
         finally
         {
@@ -210,15 +203,27 @@ public sealed class InsuranceCredentialsService
         }
     }
 
+    private static async Task<long> CreateVaultEntryAsync(
+        System.Data.Common.DbConnection conn,
+        System.Data.Common.DbTransaction tx,
+        string name,
+        CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        return await conn.ExecuteScalarAsync<long>(new CommandDefinition(
+            @"INSERT INTO vault_entry(kind, name, created_at, updated_at)
+              VALUES (@kind, @name, @now, @now);
+              SELECT last_insert_rowid();",
+            new { kind = Insurance.CredentialsEntryKind, name, now },
+            transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
+    }
+
     /// <summary>
     /// One-time migration: decrypts old encrypted notes from vault_field and
-    /// copies them into the plaintext insurance.notes column. Idempotent —
-    /// only processes rows where insurance.notes IS NULL and an encrypted note exists.
-    /// After copying, deletes the vault_field row (notes don't need encryption).
+    /// copies them into the plaintext insurance.notes column. Idempotent.
     /// </summary>
     public async Task MigrateNotesToColumnAsync(CancellationToken ct = default)
     {
-        // Find insurance entries that have a vault entry but no plaintext notes yet.
         await using var conn = _factory.Open();
         var candidates = await conn.QueryAsync<(long Id, long VaultEntryId)>(new CommandDefinition(
             @"SELECT id, vault_entry_id FROM insurance
@@ -227,7 +232,6 @@ public sealed class InsuranceCredentialsService
 
         foreach (var (insId, entryId) in candidates)
         {
-            // Check if an encrypted notes field exists for this entry.
             var row = await conn.QuerySingleOrDefaultAsync<VaultFieldRow>(new CommandDefinition(
                 @"SELECT id, entry_id, label, value_enc, iv, tag, is_secret
                   FROM vault_field WHERE entry_id=@entryId AND label=@label;",
@@ -236,7 +240,6 @@ public sealed class InsuranceCredentialsService
 
             if (row is null) continue;
 
-            // Decrypt the notes value.
             var pt = _vault.DecryptField(row.Iv, row.ValueEnc, row.Tag);
             string plaintext;
             try { plaintext = Encoding.UTF8.GetString(pt); }
@@ -244,7 +247,6 @@ public sealed class InsuranceCredentialsService
 
             if (string.IsNullOrWhiteSpace(plaintext)) continue;
 
-            // Write to the plaintext column and delete the encrypted vault_field row.
             await conn.ExecuteAsync(new CommandDefinition(
                 "UPDATE insurance SET notes=@notes, updated_at=@now WHERE id=@id;",
                 new { notes = plaintext, now = DateTimeOffset.UtcNow, id = insId },

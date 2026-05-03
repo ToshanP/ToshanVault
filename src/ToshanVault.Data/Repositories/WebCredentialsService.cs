@@ -27,6 +27,9 @@ public sealed class WebCredentialsService
     public const int MaxQa = 10;
     public const string EntryKind = "web_login";
 
+    /// <summary>Fixed list of owner labels offered in the UI dropdown.</summary>
+    public static readonly IReadOnlyList<string> KnownOwners = BankCredentialsService.KnownOwners;
+
     private readonly IDbConnectionFactory _factory;
     private readonly Vault _vault;
 
@@ -170,5 +173,154 @@ public sealed class WebCredentialsService
             foreach (var sf in sealedFields)
                 if (sf.Plaintext is not null) CryptographicOperations.ZeroMemory(sf.Plaintext);
         }
+    }
+
+    /// <summary>
+    /// Persist credential fields for one (entry, owner) pair via the web_credential
+    /// table. Creates the web_credential row + its vault_entry on first save.
+    /// For migrated entries the credential vault_entry_id may equal the parent entry_id.
+    /// </summary>
+    /// <returns>The vault_entry id used for this credential.</returns>
+    public async Task<long> SaveCredentialsAsync(
+        long entryId,
+        string owner,
+        string entryName,
+        IReadOnlyList<FieldSpec> fields,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(fields);
+        if (string.IsNullOrWhiteSpace(owner)) throw new ArgumentException("Owner required.", nameof(owner));
+
+        var sealedFields = new List<(string Label, AesGcmCrypto.Sealed Sealed, bool HasValue, bool IsSecret, byte[]? Plaintext)>(fields.Count);
+        try
+        {
+            foreach (var f in fields)
+            {
+                if (string.IsNullOrEmpty(f.Value))
+                {
+                    sealedFields.Add((f.Label, default, false, f.IsSecret, null));
+                    continue;
+                }
+                byte[]? pt = null;
+                try
+                {
+                    pt = Encoding.UTF8.GetBytes(f.Value);
+                    var blob = _vault.EncryptField(pt);
+                    sealedFields.Add((f.Label, blob, true, f.IsSecret, pt));
+                    pt = null;
+                }
+                finally
+                {
+                    if (pt is not null) CryptographicOperations.ZeroMemory(pt);
+                }
+            }
+
+            await using var conn = _factory.Open();
+            await using var tx = (Microsoft.Data.Sqlite.SqliteTransaction)
+                await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
+
+            var parentExists = await conn.ExecuteScalarAsync<long>(new CommandDefinition(
+                "SELECT COUNT(1) FROM vault_entry WHERE id=@id;",
+                new { id = entryId }, transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
+            if (parentExists != 1) throw new InvalidOperationException($"VaultEntry {entryId} not found.");
+
+            var existing = await conn.QuerySingleOrDefaultAsync<(long CredId, long VaultEntryId)?>(new CommandDefinition(
+                @"SELECT id AS CredId, vault_entry_id AS VaultEntryId
+                  FROM web_credential
+                  WHERE entry_id=@id AND owner=@owner;",
+                new { id = entryId, owner }, transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
+
+            long credEntryId;
+            if (existing is { } pair)
+            {
+                var entryExists = await conn.ExecuteScalarAsync<long>(new CommandDefinition(
+                    "SELECT COUNT(1) FROM vault_entry WHERE id=@id;",
+                    new { id = pair.VaultEntryId }, transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
+                if (entryExists == 1)
+                {
+                    credEntryId = pair.VaultEntryId;
+                }
+                else
+                {
+                    credEntryId = await CreateCredentialEntryAsync(conn, tx, entryName, ct).ConfigureAwait(false);
+                    await conn.ExecuteAsync(new CommandDefinition(
+                        "UPDATE web_credential SET vault_entry_id=@e, updated_at=@n WHERE id=@id;",
+                        new { e = credEntryId, n = DateTimeOffset.UtcNow, id = pair.CredId },
+                        transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
+                }
+            }
+            else
+            {
+                credEntryId = await CreateCredentialEntryAsync(conn, tx, entryName, ct).ConfigureAwait(false);
+                var now = DateTimeOffset.UtcNow;
+                await conn.ExecuteAsync(new CommandDefinition(
+                    @"INSERT INTO web_credential (entry_id, owner, vault_entry_id, created_at, updated_at)
+                      VALUES (@e, @o, @ve, @n, @n);",
+                    new { e = entryId, o = owner, ve = credEntryId, n = now },
+                    transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
+            }
+
+            foreach (var sf in sealedFields)
+            {
+                if (!sf.HasValue)
+                {
+                    await conn.ExecuteAsync(new CommandDefinition(
+                        "DELETE FROM vault_field WHERE entry_id=@e AND label=@l;",
+                        new { e = credEntryId, l = sf.Label }, transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
+                    continue;
+                }
+
+                var existingId = await conn.ExecuteScalarAsync<long?>(new CommandDefinition(
+                    "SELECT id FROM vault_field WHERE entry_id=@e AND label=@l;",
+                    new { e = credEntryId, l = sf.Label }, transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
+
+                if (existingId is null)
+                {
+                    await conn.ExecuteAsync(new CommandDefinition(
+                        @"INSERT INTO vault_field(entry_id, label, value_enc, iv, tag, is_secret)
+                          VALUES (@EntryId, @Label, @ValueEnc, @Iv, @Tag, @IsSecret);",
+                        new { EntryId = credEntryId, Label = sf.Label,
+                              ValueEnc = sf.Sealed.Ciphertext, Iv = sf.Sealed.Iv, Tag = sf.Sealed.Tag,
+                              IsSecret = sf.IsSecret }, transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
+                }
+                else
+                {
+                    await conn.ExecuteAsync(new CommandDefinition(
+                        @"UPDATE vault_field SET value_enc=@ValueEnc, iv=@Iv, tag=@Tag, is_secret=@IsSecret
+                          WHERE id=@Id;",
+                        new { Id = existingId.Value,
+                              ValueEnc = sf.Sealed.Ciphertext, Iv = sf.Sealed.Iv, Tag = sf.Sealed.Tag,
+                              IsSecret = sf.IsSecret }, transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
+                }
+            }
+
+            await conn.ExecuteAsync(new CommandDefinition(
+                "UPDATE vault_entry SET updated_at=@now WHERE id=@id;",
+                new { now = DateTimeOffset.UtcNow, id = credEntryId },
+                transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
+
+            await tx.CommitAsync(ct).ConfigureAwait(false);
+            return credEntryId;
+        }
+        finally
+        {
+            foreach (var sf in sealedFields)
+                if (sf.Plaintext is not null) CryptographicOperations.ZeroMemory(sf.Plaintext);
+        }
+    }
+
+    private static async Task<long> CreateCredentialEntryAsync(
+        System.Data.Common.DbConnection conn,
+        System.Data.Common.DbTransaction tx,
+        string name,
+        CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        return await conn.ExecuteScalarAsync<long>(new CommandDefinition(
+            @"INSERT INTO vault_entry(kind, name, created_at, updated_at)
+              VALUES (@kind, @name, @now, @now);
+              SELECT last_insert_rowid();",
+            new { kind = "web_credential", name, now },
+            transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
     }
 }

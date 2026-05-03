@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using ToshanVault.Core.Models;
@@ -121,6 +122,7 @@ internal sealed class InsuranceCredentialsModel
 {
     public string Username { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
+    public QaPair[] Qa { get; } = Enumerable.Range(0, InsuranceCredentialsService.MaxQa).Select(_ => new QaPair("", "")).ToArray();
 }
 
 internal sealed class InsuranceCredentialsDialog : ContentDialog
@@ -128,18 +130,24 @@ internal sealed class InsuranceCredentialsDialog : ContentDialog
     private readonly InsuranceCredentialsModel _model;
     private readonly TextBox _username;
     private readonly PasswordBox _password;
+    private readonly TextBox[] _q = new TextBox[InsuranceCredentialsService.MaxQa];
+    private readonly PasswordBox[] _a = new PasswordBox[InsuranceCredentialsService.MaxQa];
 
-    public InsuranceCredentialsDialog(XamlRoot root, string subtitle, InsuranceCredentialsModel model)
+    public bool DeleteRequested { get; private set; }
+
+    public InsuranceCredentialsDialog(XamlRoot root, string subtitle, string owner, InsuranceCredentialsModel model, bool allowDelete)
     {
         XamlRoot = root;
         _model = model;
-        Title = "Insurer login · " + subtitle;
+        Title = $"Insurer login · {subtitle} · {owner}";
         PrimaryButtonText = "Save (encrypted)";
         CloseButtonText = "Cancel";
         DefaultButton = ContentDialogButton.Primary;
+        if (allowDelete)
+            SecondaryButtonText = "Delete credential";
 
         this.Resources["ContentDialogMaxHeight"] = 1080d;
-        this.Resources["ContentDialogMaxWidth"]  = 720d;
+        this.Resources["ContentDialogMaxWidth"]  = 820d;
         this.Resources["ContentDialogMinWidth"]  = 560d;
 
         _username = new TextBox { Header = "Username / Member ID", Text = model.Username, HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -148,18 +156,32 @@ internal sealed class InsuranceCredentialsDialog : ContentDialog
         panel.Children.Add(_username);
         _password = SecretFieldHelpers.AddSecret(panel, "Password (encrypted at rest)", model.Password);
 
+        panel.Children.Add(new TextBlock { Text = "Security questions (up to 10) — answers encrypted at rest.",
+                                           Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] });
+        for (var i = 0; i < InsuranceCredentialsService.MaxQa; i++)
+        {
+            _q[i] = new TextBox { Header = $"Q{i + 1}", Text = model.Qa[i].Question, HorizontalAlignment = HorizontalAlignment.Stretch };
+            panel.Children.Add(_q[i]);
+            _a[i] = SecretFieldHelpers.AddSecret(panel, $"A{i + 1}", model.Qa[i].Answer);
+        }
+
         Content = new ScrollViewer
         {
             Content = panel,
             MaxHeight = 920,
             HorizontalScrollMode = ScrollMode.Disabled,
             VerticalScrollMode = ScrollMode.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         };
 
         PrimaryButtonClick += (_, _) =>
         {
             _model.Username = _username.Text;
             _model.Password = _password.Password;
+            for (var i = 0; i < InsuranceCredentialsService.MaxQa; i++)
+                _model.Qa[i] = new QaPair(_q[i].Text, _a[i].Password);
         };
+
+        SecondaryButtonClick += (_, _) => { DeleteRequested = true; };
     }
 }
