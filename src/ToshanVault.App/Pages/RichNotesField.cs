@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using Microsoft.UI;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
@@ -132,6 +133,17 @@ internal sealed class RichNotesField
         toolbar.Children.Add(_familyCombo);
         toolbar.Children.Add(_sizeCombo);
         toolbar.Children.Add(new AppBarSeparator { Margin = new Thickness(2, 0, 2, 0) });
+        var tableButton = new Button
+        {
+            Content = "Table",
+            Padding = new Thickness(8, 2, 8, 2),
+            MinWidth = 56, MinHeight = 32,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        ToolTipService.SetToolTip(tableButton, "Insert table");
+        AttachTableFlyout(tableButton);
+        toolbar.Children.Add(tableButton);
+        toolbar.Children.Add(new AppBarSeparator { Margin = new Thickness(2, 0, 2, 0) });
         toolbar.Children.Add(MakeColorButton(
             "\uE8D3", "Font color",
             color => Editor.Document.Selection.CharacterFormat.ForegroundColor = color,
@@ -192,6 +204,75 @@ internal sealed class RichNotesField
             // and recover their content rather than facing a blank editor.
             Editor.Document.SetText(TextSetOptions.None, value);
         }
+    }
+
+    private void AttachTableFlyout(Button tableButton)
+    {
+        var columnsBox = new NumberBox
+        {
+            Header = "Columns",
+            Value = 3,
+            Minimum = 1,
+            Maximum = 12,
+            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        var rowsBox = new NumberBox
+        {
+            Header = "Rows",
+            Value = 3,
+            Minimum = 1,
+            Maximum = 30,
+            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+
+        var panel = new StackPanel { Spacing = 8, Width = 280 };
+        panel.Children.Add(columnsBox);
+        panel.Children.Add(rowsBox);
+        var insert = new Button
+        {
+            Content = "Insert",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Style = (Style)Application.Current.Resources["AccentButtonStyle"],
+        };
+        panel.Children.Add(insert);
+
+        var flyout = new Flyout { Content = panel };
+        insert.Click += (_, _) =>
+        {
+            var columns = ClampWholeNumber(columnsBox.Value, 1, 12, 3);
+            var rows = ClampWholeNumber(rowsBox.Value, 1, 30, 3);
+            Editor.Document.Selection.SetText(TextSetOptions.FormatRtf, BuildTableRtf(columns, rows));
+            flyout.Hide();
+            Editor.Focus(FocusState.Programmatic);
+        };
+        tableButton.Flyout = flyout;
+    }
+
+    private static int ClampWholeNumber(double value, int min, int max, int fallback)
+    {
+        if (double.IsNaN(value) || double.IsInfinity(value)) return fallback;
+        return Math.Clamp((int)Math.Round(value), min, max);
+    }
+
+    private static string BuildTableRtf(int columns, int rows)
+    {
+        const int cellWidthTwips = 1800;
+        var sb = new StringBuilder(@"{\rtf1\ansi");
+        for (var r = 0; r < rows; r++)
+        {
+            sb.Append(@"\trowd\trgaph108\trleft0");
+            for (var c = 1; c <= columns; c++)
+                sb.Append(@"\clbrdrt\brdrs\brdrw10\clbrdrl\brdrs\brdrw10\clbrdrb\brdrs\brdrw10\clbrdrr\brdrs\brdrw10\cellx")
+                    .Append(c * cellWidthTwips);
+
+            for (var c = 0; c < columns; c++)
+                sb.Append(@"\pard\intbl \cell");
+            sb.Append(@"\row");
+        }
+        sb.Append(@"\pard\par}");
+        return sb.ToString();
     }
 
     private static ToggleButton MakeToggle(string glyph, string tooltip, Action onClick)
