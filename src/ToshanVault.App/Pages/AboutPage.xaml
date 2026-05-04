@@ -8,12 +8,35 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <Grid Padding="24,16,24,16" RowSpacing="24">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-        <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="About" />
-        <TextBlock Grid.Row="1" Text="This is the About page" />
-    </Grid>
+    <ScrollViewer Padding="24,16,24,16">
+        <StackPanel Spacing="16" MaxWidth="500" HorizontalAlignment="Left">
+            <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="About" />
+
+            <StackPanel Spacing="4">
+                <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="ToshanVault" />
+                <TextBlock x:Name="VersionText" Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+
+            <TextBlock TextWrapping="Wrap"
+                       Text="A personal vault desktop app for securely managing family data — bank accounts, insurance, credentials, gold ornaments, recipes, budgets, retirement planning, and general notes." />
+
+            <StackPanel Spacing="4" Margin="0,12,0,0">
+                <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Technology" />
+                <TextBlock Text="WinUI 3 / .NET 10 / SQLite / AES-256-GCM" />
+            </StackPanel>
+
+            <StackPanel Spacing="4">
+                <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Security" />
+                <TextBlock TextWrapping="Wrap"
+                           Text="All sensitive data is encrypted at rest using AES-256-GCM with a data encryption key (DEK) that is wrapped by a password-derived key (PBKDF2-SHA256, 200k iterations). The DEK never touches disk in plaintext." />
+            </StackPanel>
+
+            <StackPanel Spacing="4">
+                <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Data location" />
+                <TextBlock x:Name="DataPathText" TextWrapping="Wrap" IsTextSelectionEnabled="True"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
 </Page>

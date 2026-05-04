@@ -128,5 +128,34 @@ public sealed class MetaRepository : IMetaStore
         return System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(blob);
     }
 
+    public async Task UpdateMetaAsync(VaultMeta meta, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(meta);
+
+        await using var conn = _factory.Open();
+        await using var tx = (Microsoft.Data.Sqlite.SqliteTransaction)await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
+
+        var rows = new List<MetaRow>
+        {
+            new(KeySalt, meta.Salt),
+            new(KeyVerifier, meta.PwdVerifier),
+            new(KeyVerifierIter, IntToBlob(meta.VerifierIterations)),
+            new(KeyKekIter, IntToBlob(meta.KekIterations)),
+            new(KeyDekWrapped, meta.DekWrapped),
+            new(KeyDekIv, meta.DekIv),
+            new(KeyDekTag, meta.DekTag),
+        };
+
+        const string sql = "UPDATE meta SET value = @Value WHERE key = @Key;";
+        foreach (var row in rows)
+        {
+            var affected = await conn.ExecuteAsync(new CommandDefinition(sql, row, tx, cancellationToken: ct)).ConfigureAwait(false);
+            if (affected == 0)
+                throw new InvalidOperationException($"Meta key '{row.Key}' not found — vault may not be initialised.");
+        }
+
+        await tx.CommitAsync(ct).ConfigureAwait(false);
+    }
+
     private sealed record MetaRow(string Key, byte[] Value);
 }

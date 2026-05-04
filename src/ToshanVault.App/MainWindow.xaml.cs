@@ -1,6 +1,8 @@
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Serilog;
 using ToshanVault_App.Hosting;
+using ToshanVault_App.Pages;
 using ToshanVault_App.Services;
 using WinRT.Interop;
 
@@ -23,6 +25,8 @@ public sealed partial class MainWindow : Window
         SetTitleBar(AppTitleBar);
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
         AppWindow.SetIcon("Assets/AppIcon.ico");
+
+        Closed += OnClosed;
 
         // Launch maximised. Calling Maximize() in the constructor is normally
         // sufficient, but on some Windows configurations the window manager
@@ -58,6 +62,22 @@ public sealed partial class MainWindow : Window
         var nav = AppHost.GetService<NavigationService>();
         nav.RegisterRootFrame(RootFrame);
         nav.NavigateToLogin();
+    }
+
+    private void OnClosed(object sender, WindowEventArgs args)
+    {
+        try
+        {
+            // Synchronous fire-and-forget — Window.Closed doesn't support async.
+            // Run backup on a thread pool thread and block briefly (max 5s) so
+            // the process doesn't exit before the copy finishes.
+            var task = System.Threading.Tasks.Task.Run(() => SettingsPage.BackupOnExitIfEnabledAsync());
+            task.Wait(TimeSpan.FromSeconds(5));
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Backup on exit encountered an error");
+        }
     }
 }
 

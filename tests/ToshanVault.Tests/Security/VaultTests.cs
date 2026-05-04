@@ -131,6 +131,77 @@ public class VaultTests
         var act = async () => await v2.UnlockAsync(GoodPassword);
         await act.Should().ThrowAsync<TamperedDataException>();
     }
+
+    [TestMethod]
+    public async Task ChangePassword_WithCorrectCurrent_SucceedsAndNewPasswordWorks()
+    {
+        const string newPassword = "NewSecure#2026";
+        var store = new InMemoryMetaStore();
+        var v = new Vault(store);
+        await v.InitialiseAsync(GoodPassword);
+
+        await v.ChangePasswordAsync(GoodPassword, newPassword);
+        v.IsUnlocked.Should().BeTrue();
+        v.Lock();
+
+        // Old password should fail
+        var v2 = new Vault(store);
+        var act = async () => await v2.UnlockAsync(GoodPassword);
+        await act.Should().ThrowAsync<WrongPasswordException>();
+
+        // New password should work
+        await v2.UnlockAsync(newPassword);
+        v2.IsUnlocked.Should().BeTrue();
+    }
+
+    [TestMethod]
+    public async Task ChangePassword_WithWrongCurrent_Throws()
+    {
+        var store = new InMemoryMetaStore();
+        var v = new Vault(store);
+        await v.InitialiseAsync(GoodPassword);
+
+        var act = async () => await v.ChangePasswordAsync(BadPassword, "anything");
+        await act.Should().ThrowAsync<WrongPasswordException>();
+    }
+
+    [TestMethod]
+    public async Task ChangePassword_WhenLocked_Throws()
+    {
+        var store = new InMemoryMetaStore();
+        var v = new Vault(store);
+        await v.InitialiseAsync(GoodPassword);
+        v.Lock();
+
+        var act = async () => await v.ChangePasswordAsync(GoodPassword, "new");
+        await act.Should().ThrowAsync<VaultLockedException>();
+    }
+
+    [TestMethod]
+    public async Task ChangePassword_EncryptedDataRemainsAccessible()
+    {
+        const string newPassword = "Changed!Pass1";
+        var store = new InMemoryMetaStore();
+        var v = new Vault(store);
+        await v.InitialiseAsync(GoodPassword);
+
+        // Encrypt something before changing password
+        var plaintext = System.Text.Encoding.UTF8.GetBytes("secret data");
+        var sealed1 = v.EncryptField(plaintext);
+
+        await v.ChangePasswordAsync(GoodPassword, newPassword);
+
+        // Data encrypted before password change should still decrypt
+        var decrypted = v.DecryptField(sealed1.Iv, sealed1.Ciphertext, sealed1.Tag);
+        decrypted.Should().BeEquivalentTo(plaintext);
+
+        // Also works after lock/unlock with new password
+        v.Lock();
+        var v2 = new Vault(store);
+        await v2.UnlockAsync(newPassword);
+        var decrypted2 = v2.DecryptField(sealed1.Iv, sealed1.Ciphertext, sealed1.Tag);
+        decrypted2.Should().BeEquivalentTo(plaintext);
+    }
 }
 
 internal sealed class InMemoryMetaStore : IMetaStore
@@ -148,7 +219,29 @@ internal sealed class InMemoryMetaStore : IMetaStore
     }
 
     public Task<VaultMeta> ReadAsync(CancellationToken ct = default)
-        => Task.FromResult(_meta ?? throw new InvalidOperationException("not initialised"));
+    {
+        if (_meta is null) throw new InvalidOperationException("not initialised");
+        // Return a copy — just like MetaRepository which reads fresh bytes from DB.
+        // Prevents UnlockAsync's `using var meta` from zeroing the stored instance.
+        return Task.FromResult(new VaultMeta
+        {
+            Salt = (byte[])_meta.Salt.Clone(),
+            VerifierIterations = _meta.VerifierIterations,
+            PwdVerifier = (byte[])_meta.PwdVerifier.Clone(),
+            KekIterations = _meta.KekIterations,
+            DekIv = (byte[])_meta.DekIv.Clone(),
+            DekWrapped = (byte[])_meta.DekWrapped.Clone(),
+            DekTag = (byte[])_meta.DekTag.Clone(),
+            HelloBlob = _meta.HelloBlob is not null ? (byte[])_meta.HelloBlob.Clone() : null,
+        });
+    }
+
+    public Task UpdateMetaAsync(VaultMeta meta, CancellationToken ct = default)
+    {
+        if (_meta is null) throw new InvalidOperationException("not initialised");
+        _meta = meta;
+        return Task.CompletedTask;
+    }
 
     /// <summary>Test-only: forcibly mutate iteration counts to simulate DB tamper.</summary>
     public void TamperIterations(int kekIter, int verifierIter)

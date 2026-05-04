@@ -61,6 +61,7 @@ public static class AppHost
         sc.AddSingleton<InsuranceRepository>();
         sc.AddSingleton<InsuranceCredentialsService>();
         sc.AddSingleton<InsuranceCredentialRepository>();
+        sc.AddSingleton<SettingsRepository>();
 
         sc.AddSingleton<IdleLockService>();
         sc.AddSingleton<NavigationService>();

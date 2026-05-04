@@ -8,12 +8,34 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <Grid Padding="24,16,24,16" RowSpacing="24">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-        <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Settings" />
-        <TextBlock Grid.Row="1" Text="This is the Settings page" />
-    </Grid>
+    <ScrollViewer Padding="24,16,24,16">
+        <StackPanel Spacing="24" MaxWidth="600" HorizontalAlignment="Left">
+            <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Settings" />
+
+            <!-- Change Master Password -->
+            <StackPanel Spacing="12">
+                <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Change master password" />
+                <PasswordBox x:Name="CurrentPasswordBox" Header="Current password" PlaceholderText="Enter current password" />
+                <PasswordBox x:Name="NewPasswordBox" Header="New password" PlaceholderText="Enter new password" />
+                <PasswordBox x:Name="ConfirmPasswordBox" Header="Confirm new password" PlaceholderText="Re-enter new password" />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Button x:Name="ChangePasswordBtn" Content="Change password"
+                            Style="{StaticResource AccentButtonStyle}"
+                            Click="ChangePassword_Click" />
+                    <ProgressRing x:Name="PasswordProgress" IsActive="False" Width="20" Height="20" Visibility="Collapsed" />
+                </StackPanel>
+                <InfoBar x:Name="PasswordInfoBar" IsOpen="False" IsClosable="True" />
+            </StackPanel>
+
+            <!-- Backup Settings -->
+            <StackPanel Spacing="12">
+                <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Backup" />
+                <ToggleSwitch x:Name="BackupOnExitToggle"
+                              Header="Automatically backup database on exit"
+                              Toggled="BackupOnExit_Toggled" />
+                <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           Text="When enabled, a copy of vault.db is saved to the backups folder each time you close the app." />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
 </Page>

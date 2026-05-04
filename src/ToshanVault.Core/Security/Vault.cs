@@ -127,6 +127,78 @@ public sealed class Vault : IAsyncDisposable, IDisposable
         if (_dek is not null) { CryptographicOperations.ZeroMemory(_dek); _dek = null; }
     }
 
+    /// <summary>
+    /// Changes the master password while the vault is unlocked. Verifies the
+    /// current password, generates a new salt + KEK, re-wraps the existing DEK,
+    /// and atomically updates the meta store. All encrypted data remains intact.
+    /// </summary>
+    public async Task ChangePasswordAsync(string currentPassword, string newPassword, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(currentPassword);
+        ArgumentException.ThrowIfNullOrEmpty(newPassword);
+        if (_dek is null) throw new VaultLockedException();
+
+        // Snapshot the DEK so a concurrent Lock() can't zero it mid-operation.
+        // Vault is documented as not thread-safe, but the UI calls this via
+        // Task.Run while idle-lock could still fire on the dispatcher.
+        var dekSnapshot = (byte[])_dek.Clone();
+
+        try
+        {
+            // Verify the current password first (constant-time)
+            using var existingMeta = await _meta.ReadAsync(ct).ConfigureAwait(false);
+            var candidateVerifier = KeyDerivation.DeriveVerifier(currentPassword, existingMeta.Salt, existingMeta.VerifierIterations);
+            var match = CryptographicOperations.FixedTimeEquals(candidateVerifier, existingMeta.PwdVerifier);
+            CryptographicOperations.ZeroMemory(candidateVerifier);
+            if (!match) throw new WrongPasswordException();
+
+            // Generate new salt and derive new KEK + verifier
+            var newSalt = RandomNumberGenerator.GetBytes(CryptoConstants.SaltBytes);
+            byte[]? newVerifier = null;
+            byte[]? newKek = null;
+            var success = false;
+
+            try
+            {
+                newVerifier = KeyDerivation.DeriveVerifier(newPassword, newSalt);
+                newKek = KeyDerivation.DeriveKek(newPassword, newSalt);
+
+                // Re-wrap the DEK snapshot with the new KEK
+                var sealedDek = AesGcmCrypto.Encrypt(newKek, dekSnapshot);
+
+                var updatedMeta = new VaultMeta
+                {
+                    Salt = newSalt,
+                    VerifierIterations = CryptoConstants.VerifierIterations,
+                    PwdVerifier = newVerifier,
+                    KekIterations = CryptoConstants.KekIterations,
+                    DekIv = sealedDek.Iv,
+                    DekWrapped = sealedDek.Ciphertext,
+                    DekTag = sealedDek.Tag,
+                };
+
+                await _meta.UpdateMetaAsync(updatedMeta, ct).ConfigureAwait(false);
+
+                // Update in-memory KEK to new one
+                if (_kek is not null) CryptographicOperations.ZeroMemory(_kek);
+                _kek = newKek;
+                success = true;
+            }
+            finally
+            {
+                if (!success)
+                {
+                    if (newVerifier is not null) CryptographicOperations.ZeroMemory(newVerifier);
+                    if (newKek is not null) CryptographicOperations.ZeroMemory(newKek);
+                }
+            }
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(dekSnapshot);
+        }
+    }
+
     public AesGcmCrypto.Sealed EncryptField(ReadOnlySpan<byte> plaintext, ReadOnlySpan<byte> associatedData = default)
     {
         if (_dek is null) throw new VaultLockedException();

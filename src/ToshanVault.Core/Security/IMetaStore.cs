@@ -10,6 +10,12 @@ public interface IMetaStore
 
     Task WriteInitialAsync(VaultMeta meta, CancellationToken ct = default);
 
+    /// <summary>
+    /// Atomically replaces all crypto material (salt, verifier, KEK-wrapped DEK).
+    /// Used exclusively by the change-password flow.
+    /// </summary>
+    Task UpdateMetaAsync(VaultMeta meta, CancellationToken ct = default);
+
     Task<VaultMeta> ReadAsync(CancellationToken ct = default);
 }
 
