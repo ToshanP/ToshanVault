@@ -10,9 +10,11 @@
 A single-user, single-PC Windows 11 desktop app that replaces `Toshan.xlsx` and provides
 a searchable, encrypted, portable home for:
 
-- **Budget** — monthly budget, retirement forecast (Jan 2025 baseline), gold ornaments
+- **Budget** — monthly budget and day-to-day finance planning
 - **Vault (ImportantDetails)** — bank accounts, website logins, memberships, secret Q&A
-- **Closed Accounts** — archive of closed bank accounts
+- **Jewellery** — physical gold/jewellery inventory and estimated value
+- **Mortgage Payoff + Mint Investment** — loan payoff plan with Mint-backed gold projection
+- **Notes** — free-form encrypted notes, including anything that no longer needs a dedicated feature
 
 ---
 
@@ -252,11 +254,11 @@ web_credential(id INTEGER PK,
 -- ONLY IF vault_entry_id != entry_id (legacy back-filled rows point to self).
 -- Back-fill: existing entries with username/password fields → owner='Toshan'.
 
- -- Mint Investment (migration 022)
+-- Mint Investment (migration 022)
 -- Operational Perth Mint-style schedule, separate from jewellery inventory and
--- retirement projections. $500/fortnight funding accumulates in the model until
--- it can fund the configured 1 oz working unit; ticking a purchase records
--- physical ounces and reduces calculated Mint account cash.
+-- jewellery inventory. Fortnightly funding accumulates in the model until it can
+-- fund the configured working unit (currently 1 oz by default); ticking a purchase
+-- records actual physical ounces and reduces calculated Mint account cash.
 mint_investment_plan(id INTEGER PK CHECK (id=1),
     enabled INTEGER NOT NULL DEFAULT 1,
     account_start_date TEXT NOT NULL,
@@ -275,6 +277,8 @@ mint_investment_purchase(due_date TEXT PK,
 -- Payoff projection uses entered minimum repayment + additional repayment per
 -- period. `term_years` remains for original-loan reference/dashboard display,
 -- but it no longer drives the period payment used by the calculator.
+-- Mortgage Payoff no longer owns editable gold assumptions. Its Gold Projection
+-- and Combined Plan views read Mint Investment plan + completed purchases.
 retirement_plan.minimum_payment_per_period REAL NOT NULL DEFAULT 0;
 ```
 
@@ -292,13 +296,14 @@ Migrations live in `Data\Migrations\*.sql` and are applied in order based on
 5. Banking — list with masked BSB/acct#, owner-initial credential avatars, edit / notes popup / close
 6. Insurance — renewal countdown tiles, owner-initial credential avatars with Q&A
 7. Retirement Cashflow — retirement income and expense inputs
-8. Mortgage Payoff — mortgage repayment calculator
+8. Mortgage Payoff — mortgage repayment calculator; Combined Plan and Gold Projection are backed by Mint Investment data
 9. Mint Investment — Perth Mint account funding schedule, tickable 1 oz purchases, Mint cash + physical ounces summary
 10. Settings — security / data / integrations / about
 11. First-run Import Wizard
 
 **Shared UI components:**
-- **NotesWindow** — standalone `Window` (not ContentDialog) for full-height rich text editing. Called via `NotesWindow.ShowAsync(title, existingRtf)` → returns `(bool saved, string? newRtf)`. Used by: Bank Accounts, Vault items, Insurance policies, General Notes.
+- **NotesWindow** — standalone `Window` (not ContentDialog) for full-height rich text editing. Called via `NotesWindow.ShowAsync(title, existingRtf)` → returns `(bool saved, string? newRtf)`. Used by: Bank Accounts, Vault items, Insurance policies, Notes tile-click editing.
+- **GeneralNoteDialog** — Notes add/edit metadata dialog. Sized to ~90% of host window, stretches the rich text editor, and scrolls attachment overflow.
 - **OwnerPickerDialog** — `ContentDialog` listing available owners (from `KnownOwners` minus existing). Used by: Bank Accounts, Insurance, Vault before opening a credential dialog.
 - **RichNotesField** — reusable `UserControl` with RichEditBox + toolbar (bold/italic/underline, font, size, colours). Wrapped inside NotesWindow for the full-height experience.
 - **AttachmentsPanel** — reusable panel with file-picker + decrypt-open + delete. Used by Bank, Vault, Insurance edit dialogs.
@@ -324,7 +329,7 @@ Migrations live in `Data\Migrations\*.sql` and are applied in order based on
 | 5a | app-foundation | ✅ done | `AppHost` (MEDI composition root, idempotent `Build()` from `App.OnLaunched`), `AppPaths` (`%LOCALAPPDATA%\ToshanVault\vault.db`, env override `TOSHANVAULT_DATA_DIR`), `IdleLockService` (1Hz `DispatcherTimer`, `GetLastInputInfo` probe, default 10 min), `NavigationService`, `LoginPage` (first-run vs unlock, runs migrations on `OnNavigatedTo`, 750 ms backoff stub on `WrongPasswordException`), `MainShellPage` (NavigationView with main + Lock/About + Settings, idle-lock event wiring), placeholder pages for early navigation. Re-pivoted from Phase 4 (xlsx blocked on free-form spreadsheet) so UI exists to drive data shape. Build green; 50/50 prior tests still pass. Smoke launch verified (required `<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>` — see I12). App test ref dropped: WindowsAppSDK auto-init `<Module>` cctor crashes `dotnet test` (see I12). |
 | 5b | budget-pages | ✅ done | Weekly Budget page (Income / Fixed / Variable) shipped |
 | 6 | vault-page | ✅ done | Vault with category grouping, coloured banners, drag-drop |
-| 7 | recipes-page | ✅ removed | Removed from app; recipe data is now expected to live in Notes or external sheets. Migration 024 drops legacy `recipe`/`recipe_tag` tables. |
+| 7 | recipes-page | ✅ removed | Removed from app; recipe data is expected to live in Notes or external sheets. Migration 024 drops legacy `recipe`/`recipe_tag` tables. |
 | 8 | closed-accounts-page | ✅ done | Integrated into bank-accounts with is_closed flag |
 | 9 | dashboard | ✅ done | 7-tile dashboard with KPIs, backup button, nav integration |
 | 10 | settings-backup | ⏳ | |
@@ -379,7 +384,7 @@ dotnet run --project src\ToshanVault.App\ToshanVault.App.csproj -c Debug -p:Plat
 Tests:
 ```powershell
 dotnet test tests\ToshanVault.Tests\ToshanVault.Tests.csproj -c Debug -p:Platform=x64
-# 124 total, 120 passing, 4 skipped after Recipes removal.
+# 127 total, 123 passing, 4 skipped after Mint-backed mortgage projection.
 ```
 
 Single-file publish:
@@ -465,6 +470,10 @@ WinUI 3 packaged apps cannot run on `AnyCPU` and we only ship Win 11 x64.
 | 2026-05-04 | **NotesWindow popup implemented**. Extracted notes editing from all edit dialogs into a standalone `Window` (`NotesWindow.xaml.cs`). Uses 90% screen width/height. RichNotesField placed inside a Grid with Auto+Star rows so the editor fills the full available height. Notes icon button (📝 glyph \uE70B) added to Bank Account, Vault, and Insurance tiles. Notes removed from edit dialog forms. Insurance: `insurance.notes` column added (plaintext, stored in DB not vault_field), with `MigrateNotesToColumnAsync()` to decrypt old vault_field notes on first navigation. General Notes page already used it. Committed: `edc0089` |
 | 2026-05-04 | **Multi-owner credentials for Insurance + Vault**. Replicated the Bank Accounts multi-owner credential pattern. Migrations 019 (`insurance_credential`) and 020 (`web_credential`) create junction tables with `UNIQUE(parent_id, owner)` + cascade delete triggers. Back-fill: existing vault_entry_id rows assigned owner='Toshan'. `InsuranceCredentialsService` fully rewritten: `SaveAsync(insuranceId, owner, entryName, fields)` creates/reuses insurance_credential row + vault_entry. `WebCredentialsService` gained `SaveCredentialsAsync(entryId, owner, entryName, fields)` (SaveAsync preserved for item-level fields). New repos: `InsuranceCredentialRepository`, `WebCredentialRepository`. UI: owner-initial avatar buttons (circular, showing first letter of owner) + "+" button for adding new owners via `OwnerPickerDialog`. `InsuranceCredentialsDialog` and `VaultCredentialsDialog` now include owner in title, Q&A (up to 10 pairs), and delete button (secondary). `KnownOwners` shared: ["Toshan","Devangini","Prachi","Saloni"]. Build and tests passed at delivery; current suite is 124 tests after Recipes removal. Committed: `c1f0d9a` |
 | 2026-05-04 | **User decision: keep duplicated credential pattern** per page (Bank/Insurance/Vault) rather than creating a shared credential component. Rationale: dialogs differ per domain (Bank has CardPin/PhonePin/ClientID; Insurance has Username/Password/Q&A; Vault has Username/Password/Q&A) and for a personal app the simplicity of duplicated patterns outweighs DRY concerns |
+| 2026-05-04 | **Recipes fully removed**. User decided Recipes felt out of place and should live in Notes/external sheet instead. Removed Recipes nav tile/page/dialog, dashboard count, `Recipe` model, `RecipeRepository`, importer, tests, Markdig package, seed/parser tooling, and docs references. Fresh DB path no longer creates recipe tables; migration `012_recipe_tried_category.sql` is a no-op to preserve numbering; migration `024_remove_recipes.sql` drops `recipe_tag` then `recipe` for existing DBs. Build/tests passed; app republished preserving DB/settings. Committed: `1b160b5`; published via `c900346` lineage. |
+| 2026-05-04 | **Navigation labels finalised**. Dashboard remains first. Main order: Dashboard, Budget, Vault, Insurance, Banking, Notes, Retirement Cashflow, Mortgage Payoff, Mint Investment, Jewellery. Renames: Bank Accounts→Banking, General Notes→Notes, Retirement Income / Expense→Retirement Cashflow, Retirement Planning/Mortgage Repayment→Mortgage Payoff, Gold Ornaments→Jewellery. Recipes removed. |
+| 2026-05-04 | **Notes add/edit dialog resized**. `GeneralNoteDialog` (Notes metadata/body dialog) now sizes to ~90% of host `XamlRoot`, stretches the `RichNotesField` editor, and lets attachment overflow scroll. This aligns Notes with the generic `NotesWindow` experience used by Banking/Vault/Insurance. Reviewer caught narrow-window clipping and attachment scroll edge cases; both fixed. Committed: `bae248c`; published via `379789b`. |
+| 2026-05-04 | **Mortgage Payoff gold projection now uses Mint Investment**. Mortgage Payoff keeps its Gold Projection and Combined Plan tabs, but all gold values now come from `MintInvestmentPlan` + `MintInvestmentPurchase` via `MintInvestmentCalculator.ProjectYearValues`. Removed old Mortgage-side gold inputs and stopped `RetirementPlanRepository.UpsertAsync` from writing legacy `retirement_plan.gold_*` fields, making Mint Investment the active gold source of truth. Projection accounts for fortnightly funding, actual completed purchase dates, future forecast purchases from today, Mint cash, physical ounces, and total value. Reviewers caught due-date vs completion-date accounting, stale duplicate persistence, same-cycle double-counting, and a hardcoded `$500/fortnight` label; all fixed. Tests now cover projection, completion-date accounting, and double-count prevention. Committed: `826f683`; published as `c900346`. |
 
 ---
 
@@ -636,13 +645,13 @@ copilot --resume=face5148-645d-4b5e-b4e8-1b138e9a16e9
 - 5 projects exist with all NuGet packages restored ✅
 - Project references wired correctly ✅
 - Build is **green** (`dotnet build ToshanVault.slnx -c Debug -p:Platform=x64`) ✅
-- 124 unit tests pass (4 skipped — xlsx sanitizer tests require source file) ✅
-- All major features implemented: auth, vault, budget, bank accounts, insurance, gold, retirement, dashboard, notes
+- 127 unit tests total: 123 pass, 4 skipped (xlsx sanitizer tests require source file) ✅
+- All major features implemented: auth, vault, budget, banking, insurance, jewellery, mortgage payoff, Mint Investment, retirement cashflow, dashboard, notes
 - Multi-owner credentials on all three entity types (Bank, Insurance, Vault) ✅
-- NotesWindow popup for all note-bearing entities ✅
+- NotesWindow popup for Banking/Vault/Insurance; Notes add/edit dialog is also 90%-sized ✅
 - Single-file publish works via `tools\publish-single.ps1` ✅
-- SQLite DB at `App\VaultDb\vault.db` with seeded data (54 gold items, 16 retirement items)
-- Publish script preserves VaultDb folder and *.db files
+- SQLite DB at `App\VaultDb\vault.db` with seeded data (54 jewellery/gold items, 16 retirement cashflow items)
+- Publish script preserves `App\VaultDb`, direct `*.db/*.sqlite/*.sqlite3` files, and existing `App\appsettings.json`
 - Migrations 001–024 applied (schema_ver=24)
 
 ### G. Quick orientation files
@@ -678,6 +687,17 @@ copilot --resume=face5148-645d-4b5e-b4e8-1b138e9a16e9
 | `VaultPage.xaml/.cs` | Vault with category grouping + credential avatars |
 | `VaultDialogs.cs` | `VaultEntryDialog`, `VaultCredentialsDialog` (with Q&A + delete) |
 | `NotesWindow.xaml/.cs` | Standalone notes window (full-height RichEditBox) |
+| `GeneralNoteDialog.cs` | Notes add/edit dialog; 90%-sized rich notes + attachments |
+| `RetirementPlanningPage.xaml/.cs` | Mortgage Payoff; combined plan and gold projection read Mint Investment |
+| `MintInvestmentPage.xaml/.cs` | Mint plan settings, tickable purchase schedule, Mint cash/physical ounces |
+| `GoldOrnamentsPage.xaml/.cs` | Jewellery inventory and valuation |
+
+**Core calculators (Core layer — `src\ToshanVault.Core\Models\`):**
+| File | Purpose |
+|------|---------|
+| `MortgageCalculator.cs` | Mortgage payoff from minimum repayment + additional repayment per period |
+| `MintInvestmentCalculator.cs` | Mint cash/physical gold summary, purchase schedule, and year projection used by Mortgage Payoff |
+| `GoldAccumulator.cs` | Legacy pure periodic gold accumulator; do not use for Mortgage Payoff unless intentionally restoring old behaviour |
 
 **Migrations (Data layer — `src\ToshanVault.Data\Schema\Migrations\`):**
 | File | Content |
@@ -692,6 +712,8 @@ copilot --resume=face5148-645d-4b5e-b4e8-1b138e9a16e9
 | `012_recipe_tried_category.sql` | No-op retained for migration numbering after Recipes removal |
 | `019_insurance_credential.sql` | insurance_credential multi-owner |
 | `020_web_credential.sql` | web_credential multi-owner |
+| `022_mint_investment.sql` | Mint Investment plan + completed purchases |
+| `023_retirement_minimum_payment.sql` | Mortgage Payoff minimum repayment per period |
 | `024_remove_recipes.sql` | Drops legacy recipe tables |
 
 ### I. Build & test commands
@@ -706,5 +728,7 @@ dotnet test tests\ToshanVault.Tests\ToshanVault.Tests.csproj -c Debug -p:Platfor
 # Publish single-file exe (~98 MB)
 pwsh tools\publish-single.ps1
 # Output: App\ToshanVault.App.exe + App\appsettings.json + App\VaultDb\vault.db
+# Do not launch the published app during publish verification unless you intend
+# to open/migrate the live DB. The publish script itself preserves the DB/settings.
 ```
 
