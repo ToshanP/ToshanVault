@@ -145,22 +145,6 @@ public sealed class VaultField
     public bool IsSecret { get; set; }
 }
 
-public sealed class Recipe
-{
-    public long Id { get; set; }
-    public string Title { get; set; } = string.Empty;
-    public string? Author { get; set; }
-    public string? Cuisine { get; set; }
-    public int Rating { get; set; }
-    public string? YoutubeUrl { get; set; }
-    public string? ThumbnailPath { get; set; }
-    public string? NotesMd { get; set; }
-    public bool IsFavourite { get; set; }
-    public bool IsTried { get; set; }
-    public string Category { get; set; } = "Other";
-    public DateTimeOffset AddedAt { get; set; }
-}
-
 public enum BankAccountType
 {
     Savings,

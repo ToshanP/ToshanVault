@@ -51,7 +51,6 @@ public static class AppHost
         sc.AddSingleton<GoldPriceCacheRepository>();
         sc.AddSingleton<VaultEntryRepository>();
         sc.AddSingleton<VaultFieldRepository>();
-        sc.AddSingleton<RecipeRepository>();
         sc.AddSingleton<BankAccountRepository>();
         sc.AddSingleton<BankAccountCredentialRepository>();
         sc.AddSingleton<BankCredentialsService>();

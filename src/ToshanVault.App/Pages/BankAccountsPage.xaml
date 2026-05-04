@@ -16,7 +16,7 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Bank Accounts" />
+            <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Banking" />
             <Button Grid.Column="1" Content="+ Add account" Click="AddAccount_Click"
                     Style="{StaticResource AccentButtonStyle}" />
         </Grid>

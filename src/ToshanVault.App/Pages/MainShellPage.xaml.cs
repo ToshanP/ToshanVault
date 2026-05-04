@@ -97,7 +97,6 @@ public sealed partial class MainShellPage : Page
             case "dashboard": ContentFrame.Navigate(typeof(DashboardPage)); break;
             case "budget":    ContentFrame.Navigate(typeof(BudgetPage)); break;
             case "vault":     ContentFrame.Navigate(typeof(VaultPage)); break;
-            case "recipes":   ContentFrame.Navigate(typeof(RecipesPage)); break;
             case "notes":     ContentFrame.Navigate(typeof(GeneralNotesPage)); break;
             case "banks":     ContentFrame.Navigate(typeof(BankAccountsPage)); break;
             case "insurance": ContentFrame.Navigate(typeof(InsurancePage)); break;

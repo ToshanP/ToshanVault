@@ -82,30 +82,6 @@ CREATE TABLE IF NOT EXISTS vault_field (
 );
 CREATE INDEX IF NOT EXISTS ix_vault_field_entry ON vault_field(entry_id);
 
-----------------------------------------------------------------
--- Recipes
-----------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS recipe (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    title           TEXT NOT NULL,
-    author          TEXT,
-    cuisine         TEXT,
-    rating          INTEGER NOT NULL DEFAULT 0 CHECK (rating BETWEEN 0 AND 5),
-    youtube_url     TEXT,
-    thumbnail_path  TEXT,
-    notes_md        TEXT,
-    is_favourite    INTEGER NOT NULL DEFAULT 0 CHECK (is_favourite IN (0,1)),
-    added_at        TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS ix_recipe_title ON recipe(title);
-
-CREATE TABLE IF NOT EXISTS recipe_tag (
-    recipe_id INTEGER NOT NULL REFERENCES recipe(id) ON DELETE CASCADE,
-    tag       TEXT NOT NULL,
-    PRIMARY KEY (recipe_id, tag)
-) WITHOUT ROWID;
-
-----------------------------------------------------------------
 -- Closed accounts
 ----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS closed_account (

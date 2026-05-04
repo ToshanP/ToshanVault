@@ -38,7 +38,7 @@ public static class DapperSetup
             typeof(RetirementPlan), typeof(MintInvestmentPlan), typeof(MintInvestmentPurchase),
             typeof(GoldItem), typeof(GoldPriceCache),
             typeof(VaultEntry), typeof(VaultFieldRow),
-            typeof(Recipe), typeof(BankAccount),
+            typeof(BankAccount),
             typeof(Insurance),
         })
         {
