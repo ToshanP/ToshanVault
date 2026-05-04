@@ -133,9 +133,9 @@ internal sealed class VaultEntryDialog : ContentDialog
         _err = new TextBlock { Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"] };
 
         var panel = new StackPanel { Spacing = 8, Width = 560 };
+        panel.Children.Add(_category);
         panel.Children.Add(_name);
         panel.Children.Add(_owner);
-        panel.Children.Add(_category);
         panel.Children.Add(_number);
         panel.Children.Add(_website);
         panel.Children.Add(_err);
@@ -157,6 +157,11 @@ internal sealed class VaultEntryDialog : ContentDialog
             VerticalScrollMode = ScrollMode.Auto,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         };
+
+        if (existing is null)
+        {
+            Loaded += (_, _) => _name.Focus(FocusState.Programmatic);
+        }
 
         PrimaryButtonClick += OnSave;
     }
