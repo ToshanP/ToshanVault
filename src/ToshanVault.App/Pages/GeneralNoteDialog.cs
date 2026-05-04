@@ -16,6 +16,9 @@ namespace ToshanVault_App.Pages;
 internal sealed class GeneralNoteDialog : ContentDialog
 {
     private static readonly string[] OwnerOptions = Enum.GetNames<VaultOwner>();
+    private const double DialogScale = 0.9;
+    private const double HorizontalContentChrome = 96;
+    private const double VerticalContentChrome = 220;
 
     public string? NameValue  { get; private set; }
     public string? OwnerValue { get; private set; }
@@ -38,11 +41,13 @@ internal sealed class GeneralNoteDialog : ContentDialog
         CloseButtonText = "Cancel";
         DefaultButton = ContentDialogButton.Primary;
 
-        // Note dialog is ~30% wider than the standard vault dialog because
-        // the rich-text body benefits from longer line lengths.
-        Resources["ContentDialogMaxHeight"] = 1080d;
-        Resources["ContentDialogMaxWidth"]  = 936d;
-        Resources["ContentDialogMinWidth"]  = 728d;
+        var dialogSize = GetDialogSize(root);
+        var contentWidth = Math.Min(dialogSize.Width, Math.Max(240, dialogSize.Width - HorizontalContentChrome));
+        var contentHeight = Math.Max(320, dialogSize.Height - VerticalContentChrome);
+
+        Resources["ContentDialogMaxHeight"] = dialogSize.Height;
+        Resources["ContentDialogMaxWidth"]  = dialogSize.Width;
+        Resources["ContentDialogMinWidth"]  = dialogSize.Width;
 
         _name = new TextBox
         {
@@ -65,24 +70,34 @@ internal sealed class GeneralNoteDialog : ContentDialog
         _body = new RichNotesField(
             "Note (encrypted at rest, formatted)",
             initialBody,
-            minHeight: 320);
+            minHeight: Math.Max(320, contentHeight - 260));
 
         _err = new TextBlock
         {
             Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"],
         };
 
-        var panel = new StackPanel { Spacing = 8, Width = 728 };
+        var panel = new Grid { RowSpacing = 8, Width = contentWidth };
+        panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        panel.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        Grid.SetRow(_name, 0);
+        Grid.SetRow(_owner, 1);
+        Grid.SetRow(_err, 3);
         panel.Children.Add(_name);
         panel.Children.Add(_owner);
-        panel.Children.Add(_body.Container);
+        panel.Children.Add(CreateStretchingNotesContainer(_body));
         panel.Children.Add(_err);
 
         if (existing is not null && attachments is not null)
         {
+            panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var attPanel = new AttachmentsPanel(attachments, root, MainWindow.Hwnd,
                 Attachment.KindGeneralNote, existing.Id);
             attPanel.WireRowEvents();
+            Grid.SetRow(attPanel.Container, 4);
             panel.Children.Add(attPanel.Container);
             Loaded += async (_, _) => { try { await attPanel.ReloadAsync(); } catch { /* swallow */ } };
         }
@@ -90,13 +105,41 @@ internal sealed class GeneralNoteDialog : ContentDialog
         Content = new ScrollViewer
         {
             Content = panel,
-            MaxHeight = 920,
+            MaxHeight = contentHeight,
             HorizontalScrollMode = ScrollMode.Disabled,
             VerticalScrollMode = ScrollMode.Auto,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         };
 
         PrimaryButtonClick += OnSave;
+    }
+
+    private static (double Width, double Height) GetDialogSize(XamlRoot root)
+    {
+        var width = root.Size.Width > 0 ? root.Size.Width * DialogScale : 1400;
+        var height = root.Size.Height > 0 ? root.Size.Height * DialogScale : 900;
+        return (width, height);
+    }
+
+    private static FrameworkElement CreateStretchingNotesContainer(RichNotesField notes)
+    {
+        var stack = (StackPanel)notes.Container;
+        var header = stack.Children[0];
+        var editor = stack.Children[1];
+        stack.Children.Clear();
+
+        var grid = new Grid();
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+        Grid.SetRow((FrameworkElement)header, 0);
+        Grid.SetRow((FrameworkElement)editor, 1);
+        ((FrameworkElement)editor).VerticalAlignment = VerticalAlignment.Stretch;
+
+        grid.Children.Add(header);
+        grid.Children.Add(editor);
+        Grid.SetRow(grid, 2);
+        return grid;
     }
 
     private void OnSave(ContentDialog sender, ContentDialogButtonClickEventArgs args)
