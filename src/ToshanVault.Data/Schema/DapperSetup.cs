@@ -35,7 +35,7 @@ public static class DapperSetup
         foreach (var t in new[]
         {
             typeof(BudgetCategory), typeof(BudgetItem), typeof(RetirementItem),
-            typeof(RetirementPlan),
+            typeof(RetirementPlan), typeof(MintInvestmentPlan), typeof(MintInvestmentPurchase),
             typeof(GoldItem), typeof(GoldPriceCache),
             typeof(VaultEntry), typeof(VaultFieldRow),
             typeof(Recipe), typeof(BankAccount),

@@ -39,6 +39,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <StackPanel Grid.Column="0">
                         <TextBlock Text="Loan name" Style="{StaticResource CaptionTextBlockStyle}" />
@@ -55,9 +56,9 @@
                                    SpinButtonPlacementMode="Compact" />
                     </StackPanel>
                     <StackPanel Grid.Column="3">
-                        <TextBlock Text="Term (years)" Style="{StaticResource CaptionTextBlockStyle}" />
+                        <TextBlock Text="Original term (years)" Style="{StaticResource CaptionTextBlockStyle}" />
                         <NumberBox x:Name="TermBox" Minimum="1" Maximum="40" SmallChange="1" LargeChange="5"
-                                   SpinButtonPlacementMode="Compact" />
+                                    SpinButtonPlacementMode="Compact" />
                     </StackPanel>
 
                     <StackPanel Grid.Row="1" Grid.Column="0">
@@ -69,15 +70,20 @@
                         </ComboBox>
                     </StackPanel>
                     <StackPanel Grid.Row="1" Grid.Column="1">
-                        <TextBlock Text="Extra payment / period (AUD)" Style="{StaticResource CaptionTextBlockStyle}" />
-                        <NumberBox x:Name="ExtraBox" Minimum="0" SmallChange="50" LargeChange="500"
+                        <TextBlock Text="Minimum repayment / period (AUD)" Style="{StaticResource CaptionTextBlockStyle}" />
+                        <NumberBox x:Name="MinimumPaymentBox" Minimum="0" SmallChange="50" LargeChange="500"
                                    SpinButtonPlacementMode="Compact" />
                     </StackPanel>
                     <StackPanel Grid.Row="1" Grid.Column="2">
+                        <TextBlock Text="Additional payment / period (AUD)" Style="{StaticResource CaptionTextBlockStyle}" />
+                        <NumberBox x:Name="ExtraBox" Minimum="0" SmallChange="50" LargeChange="500"
+                                    SpinButtonPlacementMode="Compact" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Grid.Column="3">
                         <TextBlock Text="Loan start date" Style="{StaticResource CaptionTextBlockStyle}" />
                         <CalendarDatePicker x:Name="StartDateBox" HorizontalAlignment="Stretch" />
                     </StackPanel>
-                    <StackPanel Grid.Row="1" Grid.Column="3">
+                    <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="4">
                         <TextBlock Text="Notes" Style="{StaticResource CaptionTextBlockStyle}" />
                         <TextBox x:Name="NotesBox" PlaceholderText="Optional" />
                     </StackPanel>
@@ -112,6 +118,7 @@
                                 Style="{StaticResource AccentButtonStyle}" />
                     </StackPanel>
                 </Grid>
+
             </StackPanel>
         </Border>
 

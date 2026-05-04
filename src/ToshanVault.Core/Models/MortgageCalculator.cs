@@ -73,6 +73,23 @@ public static class MortgageCalculator
         DateOnly startDate)
     {
         var scheduled = ScheduledPayment(principal, annualRatePct, termYears, frequency);
+        return AmortizeWithMinimumPayment(
+            principal, annualRatePct, frequency, scheduled, extraPerPeriod, startDate);
+    }
+
+    public static AmortizationResult AmortizeWithMinimumPayment(
+        double principal,
+        double annualRatePct,
+        RepaymentFrequency frequency,
+        double minimumPaymentPerPeriod,
+        double extraPerPeriod,
+        DateOnly startDate)
+    {
+        if (principal <= 0) throw new ArgumentOutOfRangeException(nameof(principal));
+        if (annualRatePct < 0) throw new ArgumentOutOfRangeException(nameof(annualRatePct));
+        if (minimumPaymentPerPeriod <= 0) throw new ArgumentOutOfRangeException(nameof(minimumPaymentPerPeriod));
+
+        var scheduled = minimumPaymentPerPeriod;
         if (extraPerPeriod < 0) extraPerPeriod = 0;
         var actual = scheduled + extraPerPeriod;
 

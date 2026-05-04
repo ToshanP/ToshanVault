@@ -48,6 +48,24 @@ public class MortgageCalculatorTests
     }
 
     [TestMethod]
+    public void AmortizeWithMinimumPayment_UsesEnteredMinimumPlusExtra()
+    {
+        var start = new DateOnly(2026, 1, 1);
+        var minimum = 1600;
+
+        var baseline = MortgageCalculator.AmortizeWithMinimumPayment(
+            545000, 6.0, RepaymentFrequency.Fortnightly, minimum, 0, start);
+        var withExtra = MortgageCalculator.AmortizeWithMinimumPayment(
+            545000, 6.0, RepaymentFrequency.Fortnightly, minimum, 500, start);
+
+        baseline.ScheduledPayment.Should().Be(minimum);
+        baseline.ActualPayment.Should().Be(minimum);
+        withExtra.ScheduledPayment.Should().Be(minimum);
+        withExtra.ActualPayment.Should().Be(minimum + 500);
+        withExtra.PeriodsToPayoff.Should().BeLessThan(baseline.PeriodsToPayoff);
+    }
+
+    [TestMethod]
     public void Amortize_ZeroRate_PaysExactlyPrincipal()
     {
         var start = new DateOnly(2026, 1, 1);
@@ -113,5 +131,31 @@ public class GoldAccumulatorTests
         var start = new DateOnly(2026, 1, 1);
         var r = GoldAccumulator.Project(500, 5.0, RepaymentFrequency.Fortnightly, start, start, 78); // 3 yrs
         r.YearValues.Count.Should().Be(3);
+    }
+
+    [TestMethod]
+    public void Project_PhysicalPurchase_DoesNotDoubleCountCashOrBuyExtraBoundary()
+    {
+        var start = new DateOnly(2026, 1, 1);
+        var plan = new GoldAccumulator.PhysicalPurchasePlan(
+            Enabled: true,
+            BarOunces: 1,
+            IntervalMonths: 1,
+            PricePerOunceAud: 100,
+            StartDate: start);
+
+        var r = GoldAccumulator.Project(
+            perPeriod: 500,
+            annualGrowthPct: 0,
+            frequency: RepaymentFrequency.Monthly,
+            loanStart: start,
+            goldStart: start,
+            totalPeriods: 12,
+            physicalPlan: plan);
+
+        r.TotalContributed.Should().Be(6000);
+        r.TotalPhysicalSpent.Should().Be(1200);
+        r.TotalOunces.Should().Be(12);
+        r.FinalValue.Should().Be(6000);
     }
 }

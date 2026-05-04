@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -37,6 +39,7 @@ public sealed partial class RetirementPlanningPage : Page
         PrincipalBox.Value   = p.Principal;
         RateBox.Value        = p.AnnualRatePct;
         TermBox.Value        = p.TermYears;
+        MinimumPaymentBox.Value = p.MinimumPaymentPerPeriod;
         ExtraBox.Value       = p.ExtraPerPeriod;
         NotesBox.Text        = p.Notes ?? string.Empty;
         StartDateBox.Date    = ToDto(p.StartDate);
@@ -77,6 +80,7 @@ public sealed partial class RetirementPlanningPage : Page
         AnnualRatePct  = NumOrZero(RateBox.Value),
         TermYears      = (int)Math.Max(1, NumOrZero(TermBox.Value)),
         Frequency      = CurrentFrequency(),
+        MinimumPaymentPerPeriod = NumOrZero(MinimumPaymentBox.Value),
         ExtraPerPeriod = NumOrZero(ExtraBox.Value),
         StartDate      = StartDateBox.Date is { } d
             ? DateOnly.FromDateTime(d.LocalDateTime.Date)
@@ -112,10 +116,16 @@ public sealed partial class RetirementPlanningPage : Page
                 return;
             }
 
-            var withExtra    = MortgageCalculator.Amortize(p.Principal, p.AnnualRatePct, p.TermYears,
-                                                           p.Frequency, p.ExtraPerPeriod, p.StartDate);
-            var withoutExtra = MortgageCalculator.Amortize(p.Principal, p.AnnualRatePct, p.TermYears,
-                                                           p.Frequency, 0,                p.StartDate);
+            if (p.MinimumPaymentPerPeriod <= 0)
+            {
+                ShowInfo("Enter a minimum repayment greater than zero.", error: true);
+                return;
+            }
+
+            var withExtra    = MortgageCalculator.AmortizeWithMinimumPayment(
+                p.Principal, p.AnnualRatePct, p.Frequency, p.MinimumPaymentPerPeriod, p.ExtraPerPeriod, p.StartDate);
+            var withoutExtra = MortgageCalculator.AmortizeWithMinimumPayment(
+                p.Principal, p.AnnualRatePct, p.Frequency, p.MinimumPaymentPerPeriod, 0, p.StartDate);
             var gold         = GoldAccumulator.Project(p.GoldPerPeriod, p.GoldGrowthPct, p.Frequency,
                                                        p.StartDate, p.GoldStartDate, withExtra.PeriodsToPayoff);
 
@@ -128,7 +138,7 @@ public sealed partial class RetirementPlanningPage : Page
             ActualLabel.Text        = withExtra.ActualPayment.ToString("C0", Aud);
             ActualSubLabel.Text     = p.ExtraPerPeriod > 0
                 ? $"includes {p.ExtraPerPeriod.ToString("C0", Aud)} extra"
-                : "no extra payment";
+                : "minimum only";
             PayoffDateLabel.Text    = withExtra.PayoffDate.ToString("MMM yyyy", Aud);
             PayoffSubLabel.Text     = $"{yearsActual:F1} yr ({withExtra.PeriodsToPayoff} payments)";
             InterestLabel.Text      = withExtra.TotalInterest.ToString("C0", Aud);

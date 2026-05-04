@@ -265,6 +265,31 @@ web_credential(id INTEGER PK,
 -- AFTER DELETE trigger trg_web_credential_after_delete removes linked vault_entry
 -- ONLY IF vault_entry_id != entry_id (legacy back-filled rows point to self).
 -- Back-fill: existing entries with username/password fields → owner='Toshan'.
+
+ -- Mint Investment (migration 022)
+-- Operational Perth Mint-style schedule, separate from jewellery inventory and
+-- retirement projections. $500/fortnight funding accumulates in the model until
+-- it can fund the configured 1 oz working unit; ticking a purchase records
+-- physical ounces and reduces calculated Mint account cash.
+mint_investment_plan(id INTEGER PK CHECK (id=1),
+    enabled INTEGER NOT NULL DEFAULT 1,
+    account_start_date TEXT NOT NULL,
+    fortnightly_contribution_aud REAL NOT NULL DEFAULT 500,
+    working_unit_ounces REAL NOT NULL DEFAULT 1,
+    price_per_ounce_aud REAL NOT NULL,
+    reminder_lead_days INTEGER NOT NULL DEFAULT 14,
+    consolidation_target_ounces REAL NOT NULL DEFAULT 10,
+    notes TEXT);
+mint_investment_purchase(due_date TEXT PK,
+    completed_date TEXT NOT NULL,
+    ounces REAL NOT NULL,
+    price_per_ounce_aud REAL NOT NULL,
+    notes TEXT);
+-- Retirement Planning mortgage payoff (migration 023)
+-- Payoff projection uses entered minimum repayment + additional repayment per
+-- period. `term_years` remains for original-loan reference/dashboard display,
+-- but it no longer drives the period payment used by the calculator.
+retirement_plan.minimum_payment_per_period REAL NOT NULL DEFAULT 0;
 ```
 
 Migrations live in `Data\Migrations\*.sql` and are applied in order based on
@@ -281,8 +306,9 @@ Migrations live in `Data\Migrations\*.sql` and are applied in order based on
 5. Recipes — GridView + WebView2 detail
 6. Bank Accounts — list with masked BSB/acct#, owner-initial credential avatars, edit / notes popup / close
 7. Insurance — renewal countdown tiles, owner-initial credential avatars with Q&A
-8. Settings — security / data / integrations / about
-9. First-run Import Wizard
+8. Mint Investment — Perth Mint account funding schedule, tickable 1 oz purchases, Mint cash + physical ounces summary
+9. Settings — security / data / integrations / about
+10. First-run Import Wizard
 
 **Shared UI components:**
 - **NotesWindow** — standalone `Window` (not ContentDialog) for full-height rich text editing. Called via `NotesWindow.ShowAsync(title, existingRtf)` → returns `(bool saved, string? newRtf)`. Used by: Bank Accounts, Vault items, Insurance policies, General Notes.
