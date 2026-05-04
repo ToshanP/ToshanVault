@@ -74,13 +74,29 @@ internal sealed class VaultEntryDialog : ContentDialog
         if (existingCategories is { Count: > 0 })
         {
             _category.ItemsSource = existingCategories;
+            string lastGoodText = existing?.Category ?? string.Empty;
             _category.TextChanged += (s, e) =>
             {
-                if (e.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
-                var q = (s.Text ?? string.Empty).Trim();
-                s.ItemsSource = q.Length == 0
-                    ? existingCategories
-                    : existingCategories.Where(c => c.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+                if (e.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
+                {
+                    lastGoodText = s.Text ?? string.Empty;
+                    var q = lastGoodText.Trim();
+                    s.ItemsSource = q.Length == 0
+                        ? existingCategories
+                        : existingCategories.Where(c => c.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+                }
+                else if (e.Reason == AutoSuggestionBoxTextChangeReason.SuggestionChosen
+                         && string.IsNullOrEmpty(s.Text) && !string.IsNullOrEmpty(lastGoodText))
+                {
+                    // WinUI quirk: tabbing out without selecting a suggestion
+                    // fires SuggestionChosen with empty text. Restore.
+                    s.Text = lastGoodText;
+                }
+                else if (e.Reason == AutoSuggestionBoxTextChangeReason.ProgrammaticChange)
+                {
+                    // PrefillCategory or restore — keep lastGoodText in sync.
+                    lastGoodText = s.Text ?? string.Empty;
+                }
             };
         }
 
