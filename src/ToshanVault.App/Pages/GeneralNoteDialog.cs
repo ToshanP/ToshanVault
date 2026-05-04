@@ -2,6 +2,8 @@ using System;
 using System.Linq;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
+using Windows.System;
 using ToshanVault.Core.Models;
 using ToshanVault.Data.Repositories;
 
@@ -23,6 +25,7 @@ internal sealed class GeneralNoteDialog : ContentDialog
     public string? NameValue  { get; private set; }
     public string? OwnerValue { get; private set; }
     public string? BodyValue  { get; private set; }
+    public bool Saved { get; private set; }
 
     private readonly TextBox _name;
     private readonly ComboBox _owner;
@@ -37,9 +40,6 @@ internal sealed class GeneralNoteDialog : ContentDialog
     {
         XamlRoot = root;
         Title = existing is null ? "Add note" : $"Edit · {existing.Name}";
-        PrimaryButtonText = "Save";
-        CloseButtonText = "Cancel";
-        DefaultButton = ContentDialogButton.Primary;
 
         var dialogSize = GetDialogSize(root);
         var contentWidth = Math.Min(dialogSize.Width, Math.Max(240, dialogSize.Width - HorizontalContentChrome));
@@ -102,7 +102,49 @@ internal sealed class GeneralNoteDialog : ContentDialog
             Loaded += async (_, _) => { try { await attPanel.ReloadAsync(); } catch { /* swallow */ } };
         }
 
-        Content = new ScrollViewer
+        var saveButton = new Button
+        {
+            Content = "Save",
+            MinWidth = 76,
+            Style = (Style)Application.Current.Resources["AccentButtonStyle"],
+        };
+        saveButton.Click += (_, _) => SaveAndClose();
+        var saveAccelerator = new KeyboardAccelerator { Key = VirtualKey.Enter };
+        saveAccelerator.Invoked += (_, args) =>
+        {
+            SaveAndClose();
+            args.Handled = true;
+        };
+        saveButton.KeyboardAccelerators.Add(saveAccelerator);
+
+        var cancelButton = new Button
+        {
+            Content = "Cancel",
+            MinWidth = 76,
+        };
+        cancelButton.Click += (_, _) => Hide();
+        var cancelAccelerator = new KeyboardAccelerator { Key = VirtualKey.Escape };
+        cancelAccelerator.Invoked += (_, args) =>
+        {
+            Hide();
+            args.Handled = true;
+        };
+        cancelButton.KeyboardAccelerators.Add(cancelAccelerator);
+
+        var buttonRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 12, 0, 0),
+        };
+        buttonRow.Children.Add(saveButton);
+        buttonRow.Children.Add(cancelButton);
+
+        var contentGrid = new Grid { RowSpacing = 0 };
+        contentGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        contentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var scroller = new ScrollViewer
         {
             Content = panel,
             MaxHeight = contentHeight,
@@ -110,8 +152,11 @@ internal sealed class GeneralNoteDialog : ContentDialog
             VerticalScrollMode = ScrollMode.Auto,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         };
-
-        PrimaryButtonClick += OnSave;
+        Grid.SetRow(scroller, 0);
+        Grid.SetRow(buttonRow, 1);
+        contentGrid.Children.Add(scroller);
+        contentGrid.Children.Add(buttonRow);
+        Content = contentGrid;
     }
 
     private static (double Width, double Height) GetDialogSize(XamlRoot root)
@@ -142,17 +187,18 @@ internal sealed class GeneralNoteDialog : ContentDialog
         return grid;
     }
 
-    private void OnSave(ContentDialog sender, ContentDialogButtonClickEventArgs args)
+    private void SaveAndClose()
     {
         var name = (_name.Text ?? string.Empty).Trim();
         if (name.Length == 0)
         {
             _err.Text = "Title is required.";
-            args.Cancel = true;
             return;
         }
         NameValue  = name;
         OwnerValue = _owner.SelectedItem as string;
         BodyValue  = _body.GetValue();
+        Saved = true;
+        Hide();
     }
 }

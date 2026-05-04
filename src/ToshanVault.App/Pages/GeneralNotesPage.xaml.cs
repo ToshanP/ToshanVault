@@ -98,7 +98,8 @@ public sealed partial class GeneralNotesPage : Page
             // time the user edits the note.
             var dlg = new GeneralNoteDialog(this.XamlRoot, existing: null,
                                             initialBody: null, attachments: null);
-            if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+            await dlg.ShowAsync();
+            if (!dlg.Saved) return;
 
             entry.Name  = dlg.NameValue ?? "Untitled note";
             entry.Owner = dlg.OwnerValue;
@@ -146,7 +147,8 @@ public sealed partial class GeneralNotesPage : Page
             if (entry is null) { ShowError("Note not found."); await ReloadAsync(); return; }
             var body = await _notes.LoadBodyAsync(id);
             var dlg = new GeneralNoteDialog(this.XamlRoot, entry, body, _attachments);
-            if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+            await dlg.ShowAsync();
+            if (!dlg.Saved) return;
             entry.Name  = dlg.NameValue ?? entry.Name;
             entry.Owner = dlg.OwnerValue;
             await _entryRepo.UpdateAsync(entry);
