@@ -14,7 +14,7 @@
 
         <!-- Title -->
         <StackPanel Grid.Row="0">
-            <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Retirement Planning" />
+            <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Mortgage Repayment" />
             <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                        Text="Mortgage payoff + parallel gold accumulation. Edit values then click Recalculate." />
