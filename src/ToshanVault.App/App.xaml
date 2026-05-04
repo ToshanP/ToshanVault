@@ -10,7 +10,19 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
                 <!-- Other merged dictionaries here -->
             </ResourceDictionary.MergedDictionaries>
-            <!-- Other app resources here -->
+            <Style x:Key="NormalDialogButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="MinWidth" Value="76" />
+                <Setter Property="HorizontalAlignment" Value="Right" />
+            </Style>
+            <Style x:Key="NormalPrimaryDialogButtonStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+                <Setter Property="MinWidth" Value="76" />
+                <Setter Property="HorizontalAlignment" Value="Right" />
+            </Style>
+            <Style TargetType="ContentDialog">
+                <Setter Property="PrimaryButtonStyle" Value="{StaticResource NormalPrimaryDialogButtonStyle}" />
+                <Setter Property="SecondaryButtonStyle" Value="{StaticResource NormalDialogButtonStyle}" />
+                <Setter Property="CloseButtonStyle" Value="{StaticResource NormalDialogButtonStyle}" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
