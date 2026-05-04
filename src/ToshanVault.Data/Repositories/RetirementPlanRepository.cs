@@ -44,14 +44,11 @@ public sealed class RetirementPlanRepository
         await using var conn = _factory.Open();
         await conn.ExecuteAsync(new CommandDefinition(
             @"INSERT INTO retirement_plan(id, loan_name, principal, annual_rate_pct,
-                                           term_years, frequency, extra_per_period,
-                                           start_date, minimum_payment_per_period,
-                                           gold_per_period, gold_growth_pct,
-                                           gold_start_date, notes)
+                                            term_years, frequency, extra_per_period,
+                                            start_date, minimum_payment_per_period, notes)
                VALUES (1, @LoanName, @Principal, @AnnualRatePct, @TermYears,
-                       @Frequency, @ExtraPerPeriod, @StartDate,
-                       @MinimumPaymentPerPeriod,
-                       @GoldPerPeriod, @GoldGrowthPct, @GoldStartDate, @Notes)
+                        @Frequency, @ExtraPerPeriod, @StartDate,
+                        @MinimumPaymentPerPeriod, @Notes)
                ON CONFLICT(id) DO UPDATE SET
                    loan_name        = excluded.loan_name,
                    principal        = excluded.principal,
@@ -61,9 +58,6 @@ public sealed class RetirementPlanRepository
                    extra_per_period = excluded.extra_per_period,
                    start_date       = excluded.start_date,
                    minimum_payment_per_period = excluded.minimum_payment_per_period,
-                   gold_per_period  = excluded.gold_per_period,
-                   gold_growth_pct  = excluded.gold_growth_pct,
-                   gold_start_date  = excluded.gold_start_date,
                    notes            = excluded.notes;",
             new
             {
@@ -71,7 +65,6 @@ public sealed class RetirementPlanRepository
                 Frequency = p.Frequency.ToString(),
                 p.ExtraPerPeriod, p.StartDate,
                 p.MinimumPaymentPerPeriod,
-                p.GoldPerPeriod, p.GoldGrowthPct, p.GoldStartDate,
                 p.Notes,
             },
             cancellationToken: ct)).ConfigureAwait(false);

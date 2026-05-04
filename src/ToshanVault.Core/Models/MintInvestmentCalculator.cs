@@ -20,6 +20,16 @@ public static class MintInvestmentCalculator
         double CashAfterPurchase,
         bool IsConsolidationCheckpoint);
 
+    public sealed record YearProjection(
+        int YearNumber,
+        DateOnly YearEnd,
+        double ContributedThisYear,
+        double TotalContributed,
+        double MintAccountCash,
+        double PhysicalOunces,
+        double PhysicalValue,
+        double TotalValue);
+
     public static Summary Summarise(
         MintInvestmentPlan plan,
         IEnumerable<MintInvestmentPurchase> purchases,
@@ -132,6 +142,96 @@ public static class MintInvestmentCalculator
         }
 
         return rows;
+    }
+
+    public static IReadOnlyList<YearProjection> ProjectYearValues(
+        MintInvestmentPlan plan,
+        IEnumerable<MintInvestmentPurchase> purchases,
+        IReadOnlyList<DateOnly> yearEnds)
+        => ProjectYearValues(plan, purchases, yearEnds, DateOnly.FromDateTime(DateTime.Today));
+
+    public static IReadOnlyList<YearProjection> ProjectYearValues(
+        MintInvestmentPlan plan,
+        IEnumerable<MintInvestmentPurchase> purchases,
+        IReadOnlyList<DateOnly> yearEnds,
+        DateOnly forecastFrom)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(purchases);
+        ArgumentNullException.ThrowIfNull(yearEnds);
+        if (yearEnds.Count == 0) return Array.Empty<YearProjection>();
+
+        var completedPurchases = purchases
+            .Where(p => p.CompletedDate.HasValue)
+            .OrderBy(p => p.CompletedDate!.Value)
+            .ThenBy(p => p.DueDate)
+            .ToList();
+        var completedIndex = 0;
+        var rows = new List<YearProjection>(yearEnds.Count);
+        var cash = 0.0;
+        var totalContributed = 0.0;
+        var yearContributed = 0.0;
+        var ounces = 0.0;
+        var date = plan.AccountStartDate;
+        var contribution = Math.Max(0, plan.FortnightlyContributionAud);
+        var unitOunces = Math.Max(0, plan.WorkingUnitOunces);
+        var unitPrice = Math.Max(0, plan.PricePerOunceAud);
+        var unitCost = unitOunces * unitPrice;
+
+        for (var yearIndex = 0; yearIndex < yearEnds.Count; yearIndex++)
+        {
+            var yearEnd = yearEnds[yearIndex];
+            while (date <= yearEnd)
+            {
+                cash += contribution;
+                totalContributed += contribution;
+                yearContributed += contribution;
+
+                var completedThisCycle = ProcessCompletedPurchases(completedPurchases, ref completedIndex, date, ref cash, ref ounces);
+
+                if (!completedThisCycle && date >= forecastFrom && unitCost > 0 && cash + 0.0001 >= unitCost)
+                {
+                    cash -= unitCost;
+                    ounces += unitOunces;
+                }
+
+                date = date.AddDays(14);
+            }
+            ProcessCompletedPurchases(completedPurchases, ref completedIndex, yearEnd, ref cash, ref ounces);
+
+            var physicalValue = ounces * unitPrice;
+            rows.Add(new YearProjection(
+                yearIndex + 1,
+                yearEnd,
+                yearContributed,
+                totalContributed,
+                cash,
+                ounces,
+                physicalValue,
+                cash + physicalValue));
+            yearContributed = 0;
+        }
+
+        return rows;
+    }
+
+    private static bool ProcessCompletedPurchases(
+        IReadOnlyList<MintInvestmentPurchase> completedPurchases,
+        ref int completedIndex,
+        DateOnly throughDate,
+        ref double cash,
+        ref double ounces)
+    {
+        var processedAny = false;
+        while (completedIndex < completedPurchases.Count &&
+               completedPurchases[completedIndex].CompletedDate!.Value <= throughDate)
+        {
+            var completed = completedPurchases[completedIndex++];
+            cash -= Cost(completed);
+            ounces += Math.Max(0, completed.Ounces);
+            processedAny = true;
+        }
+        return processedAny;
     }
 
     public static double ContributionsToDate(MintInvestmentPlan plan, DateOnly asOf)

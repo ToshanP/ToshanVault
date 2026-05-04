@@ -17,7 +17,7 @@
             <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Mortgage Payoff" />
             <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       Text="Mortgage payoff + parallel gold accumulation. Edit values then click Recalculate." />
+                       Text="Mortgage payoff + Mint Investment gold projection. Edit loan values then click Recalculate." />
         </StackPanel>
 
         <InfoBar x:Name="InfoBar" Grid.Row="1" IsClosable="True" IsOpen="False" />
@@ -37,6 +37,7 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -83,35 +84,11 @@
                         <TextBlock Text="Loan start date" Style="{StaticResource CaptionTextBlockStyle}" />
                         <CalendarDatePicker x:Name="StartDateBox" HorizontalAlignment="Stretch" />
                     </StackPanel>
-                    <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="4">
+                    <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3">
                         <TextBlock Text="Notes" Style="{StaticResource CaptionTextBlockStyle}" />
                         <TextBox x:Name="NotesBox" PlaceholderText="Optional" />
                     </StackPanel>
-                </Grid>
-
-                <TextBlock Text="Gold accumulation (parallel savings)" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,4,0,0" />
-                <Grid ColumnSpacing="14" RowSpacing="10">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="Gold contribution / period (AUD)" Style="{StaticResource CaptionTextBlockStyle}" />
-                        <NumberBox x:Name="GoldPerPeriodBox" Minimum="0" SmallChange="50" LargeChange="500"
-                                   SpinButtonPlacementMode="Compact" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="1">
-                        <TextBlock Text="Assumed gold growth (% / yr)" Style="{StaticResource CaptionTextBlockStyle}" />
-                        <NumberBox x:Name="GoldGrowthBox" Minimum="0" Maximum="25" SmallChange="0.5" LargeChange="1"
-                                   SpinButtonPlacementMode="Compact" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="2">
-                        <TextBlock Text="Gold start date" Style="{StaticResource CaptionTextBlockStyle}" />
-                        <CalendarDatePicker x:Name="GoldStartDateBox" HorizontalAlignment="Stretch" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" VerticalAlignment="Bottom" HorizontalAlignment="Right">
+                    <StackPanel Grid.Row="2" Grid.Column="3" Orientation="Horizontal" Spacing="8" VerticalAlignment="Bottom" HorizontalAlignment="Right">
                         <Button x:Name="ResetButton"       Content="Reset defaults" Click="Reset_Click" />
                         <Button x:Name="RecalculateButton" Content="🔄 Recalculate"  Click="Recalculate_Click" />
                         <Button x:Name="SaveButton"        Content="💾 Save"        Click="Save_Click"
@@ -256,8 +233,10 @@
                         <dg:DataGrid.Columns>
                             <dg:DataGridTextColumn Header="Year"            Binding="{Binding YearNumber}"        Width="80" />
                             <dg:DataGridTextColumn Header="Year ending"     Binding="{Binding YearEndText}"       Width="140" />
-                            <dg:DataGridTextColumn Header="Contributed"     Binding="{Binding ContributedText}"   Width="160" />
-                            <dg:DataGridTextColumn Header="Ending value"    Binding="{Binding EndingValueText}"   Width="*" />
+                            <dg:DataGridTextColumn Header="Contributed"     Binding="{Binding ContributedText}"   Width="150" />
+                            <dg:DataGridTextColumn Header="Mint cash"       Binding="{Binding MintCashText}"      Width="140" />
+                            <dg:DataGridTextColumn Header="Physical oz"     Binding="{Binding PhysicalOuncesText}" Width="130" />
+                            <dg:DataGridTextColumn Header="Total value"     Binding="{Binding TotalValueText}"    Width="*" />
                         </dg:DataGrid.Columns>
                     </dg:DataGrid>
                 </TabViewItem>
@@ -445,8 +424,8 @@
                                             <TextBlock x:Name="Phase3Period" FontSize="12" FontWeight="Bold">
                                                 <TextBlock.Foreground><SolidColorBrush Color="#a8c4f0" /></TextBlock.Foreground>
                                             </TextBlock>
-                                            <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="#d0e0ff">
-                                                <Run Text="› $500/fortnight to gold" /><LineBreak/>
+                                            <TextBlock x:Name="Phase3MintLine" TextWrapping="Wrap" FontSize="14" Foreground="#d0e0ff">
+                                                <Run Text="› Mint Investment funding" /><LineBreak/>
                                                 <Run Text="› Loan + gold growing in parallel" /><LineBreak/>
                                                 <Run Text="› Long-term wealth buffer" />
                                             </TextBlock>

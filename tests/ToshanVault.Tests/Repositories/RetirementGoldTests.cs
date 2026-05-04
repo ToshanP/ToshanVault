@@ -196,6 +196,105 @@ public class RetirementGoldTests
     }
 
     [TestMethod]
+    public void MintInvestmentCalculator_ProjectsYearValuesFromFortnightlyFunding()
+    {
+        var plan = new MintInvestmentPlan
+        {
+            AccountStartDate = new DateOnly(2026, 1, 1),
+            FortnightlyContributionAud = 500,
+            WorkingUnitOunces = 1,
+            PricePerOunceAud = 1500,
+            ConsolidationTargetOunces = 10,
+        };
+        var rows = MintInvestmentCalculator.ProjectYearValues(
+            plan,
+            Array.Empty<MintInvestmentPurchase>(),
+            new[] { new DateOnly(2026, 1, 29), new DateOnly(2026, 2, 26) },
+            forecastFrom: plan.AccountStartDate);
+
+        rows.Should().HaveCount(2);
+        rows[0].ContributedThisYear.Should().Be(1500);
+        rows[0].TotalContributed.Should().Be(1500);
+        rows[0].MintAccountCash.Should().Be(0);
+        rows[0].PhysicalOunces.Should().Be(1);
+        rows[0].PhysicalValue.Should().Be(1500);
+        rows[0].TotalValue.Should().Be(1500);
+        rows[1].ContributedThisYear.Should().Be(1000);
+        rows[1].TotalContributed.Should().Be(2500);
+        rows[1].MintAccountCash.Should().Be(1000);
+        rows[1].PhysicalOunces.Should().Be(1);
+        rows[1].TotalValue.Should().Be(2500);
+    }
+
+    [TestMethod]
+    public void MintInvestmentCalculator_ProjectsCompletedPurchasesByCompletionDate()
+    {
+        var plan = new MintInvestmentPlan
+        {
+            AccountStartDate = new DateOnly(2026, 1, 1),
+            FortnightlyContributionAud = 500,
+            WorkingUnitOunces = 1,
+            PricePerOunceAud = 1500,
+        };
+        var purchases = new[]
+        {
+            new MintInvestmentPurchase
+            {
+                DueDate = new DateOnly(2026, 1, 29),
+                CompletedDate = new DateOnly(2026, 2, 2),
+                Ounces = 1,
+                PricePerOunceAud = 1500,
+            },
+        };
+
+        var rows = MintInvestmentCalculator.ProjectYearValues(
+            plan,
+            purchases,
+            new[] { new DateOnly(2026, 1, 31), new DateOnly(2026, 2, 28) },
+            forecastFrom: new DateOnly(2026, 3, 1));
+
+        rows[0].PhysicalOunces.Should().Be(0);
+        rows[0].MintAccountCash.Should().Be(1500);
+        rows[0].TotalValue.Should().Be(1500);
+        rows[1].PhysicalOunces.Should().Be(1);
+        rows[1].MintAccountCash.Should().Be(1000);
+        rows[1].TotalValue.Should().Be(2500);
+    }
+
+    [TestMethod]
+    public void MintInvestmentCalculator_CompletedPurchaseSuppressesSameCycleForecastBuy()
+    {
+        var plan = new MintInvestmentPlan
+        {
+            AccountStartDate = new DateOnly(2026, 1, 1),
+            FortnightlyContributionAud = 4000,
+            WorkingUnitOunces = 1,
+            PricePerOunceAud = 1500,
+        };
+        var purchases = new[]
+        {
+            new MintInvestmentPurchase
+            {
+                DueDate = new DateOnly(2026, 1, 1),
+                CompletedDate = new DateOnly(2026, 1, 1),
+                Ounces = 1,
+                PricePerOunceAud = 1500,
+            },
+        };
+
+        var rows = MintInvestmentCalculator.ProjectYearValues(
+            plan,
+            purchases,
+            new[] { new DateOnly(2026, 1, 1) },
+            forecastFrom: plan.AccountStartDate);
+
+        rows.Should().ContainSingle();
+        rows[0].PhysicalOunces.Should().Be(1);
+        rows[0].MintAccountCash.Should().Be(2500);
+        rows[0].TotalValue.Should().Be(4000);
+    }
+
+    [TestMethod]
     public async Task MintInvestmentRepository_PersistsPlanAndPurchases()
     {
         using var f = await TestDbFactory.CreateMigratedAsync();
