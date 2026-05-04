@@ -13,6 +13,7 @@ public sealed partial class MainShellPage : Page
     private readonly Vault _vault;
     private readonly NavigationService _nav;
     private readonly IdleLockService _idle;
+    private readonly MintInvestmentReminderService _mintReminder;
     private DispatcherTimer? _idleTimer;
     private bool _wired;
     private bool _lockRequested;
@@ -23,6 +24,7 @@ public sealed partial class MainShellPage : Page
         _vault = AppHost.GetService<Vault>();
         _nav = AppHost.GetService<NavigationService>();
         _idle = AppHost.GetService<IdleLockService>();
+        _mintReminder = AppHost.GetService<MintInvestmentReminderService>();
         Unloaded += (_, _) => Teardown();
     }
 
@@ -40,6 +42,9 @@ public sealed partial class MainShellPage : Page
         _idleTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _idleTimer.Tick += (_, _) => _idle.Tick();
         _idleTimer.Start();
+
+        DispatcherQueue.TryEnqueue(async () =>
+            await _mintReminder.ShowIfDueAsync(XamlRoot, () => _nav.NavigateInShell("mint")));
     }
 
     /// <summary>
@@ -92,13 +97,13 @@ public sealed partial class MainShellPage : Page
             case "dashboard": ContentFrame.Navigate(typeof(DashboardPage)); break;
             case "budget":    ContentFrame.Navigate(typeof(BudgetPage)); break;
             case "vault":     ContentFrame.Navigate(typeof(VaultPage)); break;
-            case "recipes":   ContentFrame.Navigate(typeof(RecipesPage)); break;
             case "notes":     ContentFrame.Navigate(typeof(GeneralNotesPage)); break;
             case "banks":     ContentFrame.Navigate(typeof(BankAccountsPage)); break;
             case "insurance": ContentFrame.Navigate(typeof(InsurancePage)); break;
             case "retirement": ContentFrame.Navigate(typeof(RetirementPlanningPage)); break;
             case "retincexp":  ContentFrame.Navigate(typeof(RetirementIncomeExpensePage)); break;
             case "gold":      ContentFrame.Navigate(typeof(GoldOrnamentsPage)); break;
+            case "mint":      ContentFrame.Navigate(typeof(MintInvestmentPage)); break;
             case "about":     ContentFrame.Navigate(typeof(AboutPage)); break;
             case "lock":      LockAndReturnToLogin(); break;
         }

@@ -62,11 +62,34 @@ public sealed class RetirementPlan
     public double AnnualRatePct { get; set; } = 6.0;
     public int TermYears { get; set; } = 30;
     public RepaymentFrequency Frequency { get; set; } = RepaymentFrequency.Fortnightly;
+    public double MinimumPaymentPerPeriod { get; set; } = 1508;
     public double ExtraPerPeriod { get; set; } = 0;
     public DateOnly StartDate { get; set; } = DateOnly.FromDateTime(DateTime.Today);
     public double GoldPerPeriod { get; set; } = 500;
     public double GoldGrowthPct { get; set; } = 5.0;
     public DateOnly GoldStartDate { get; set; } = new DateOnly(2028, 5, 1);
+    public string? Notes { get; set; }
+}
+
+public sealed class MintInvestmentPlan
+{
+    public long Id { get; set; } = 1;
+    public bool Enabled { get; set; } = true;
+    public DateOnly AccountStartDate { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+    public double FortnightlyContributionAud { get; set; } = 500;
+    public double WorkingUnitOunces { get; set; } = 1;
+    public double PricePerOunceAud { get; set; } = 5000;
+    public int ReminderLeadDays { get; set; } = 14;
+    public double ConsolidationTargetOunces { get; set; } = 10;
+    public string? Notes { get; set; }
+}
+
+public sealed class MintInvestmentPurchase
+{
+    public DateOnly DueDate { get; set; }
+    public DateOnly? CompletedDate { get; set; }
+    public double Ounces { get; set; }
+    public double PricePerOunceAud { get; set; }
     public string? Notes { get; set; }
 }
 
@@ -120,22 +143,6 @@ public sealed class VaultField
     public string Label { get; set; } = string.Empty;
     public string Value { get; set; } = string.Empty;
     public bool IsSecret { get; set; }
-}
-
-public sealed class Recipe
-{
-    public long Id { get; set; }
-    public string Title { get; set; } = string.Empty;
-    public string? Author { get; set; }
-    public string? Cuisine { get; set; }
-    public int Rating { get; set; }
-    public string? YoutubeUrl { get; set; }
-    public string? ThumbnailPath { get; set; }
-    public string? NotesMd { get; set; }
-    public bool IsFavourite { get; set; }
-    public bool IsTried { get; set; }
-    public string Category { get; set; } = "Other";
-    public DateTimeOffset AddedAt { get; set; }
 }
 
 public enum BankAccountType

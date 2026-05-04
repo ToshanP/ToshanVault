@@ -39,7 +39,6 @@ public sealed partial class DashboardPage : Page
     private readonly RetirementPlanRepository   _plan     = AppHost.GetService<RetirementPlanRepository>();
     private readonly VaultEntryRepository       _entries  = AppHost.GetService<VaultEntryRepository>();
     private readonly BankAccountRepository      _banks    = AppHost.GetService<BankAccountRepository>();
-    private readonly RecipeRepository           _recipes  = AppHost.GetService<RecipeRepository>();
 
     public DashboardPage() => InitializeComponent();
 
@@ -216,7 +215,6 @@ public sealed partial class DashboardPage : Page
         var banks    = await _banks.GetAllAsync();
         var ins      = await _insurance.GetAllAsync();
         var notes    = await _entries.GetByKindAsync(GeneralNotesService.EntryKind);
-        var recipes  = await _recipes.GetAllAsync();
         // Vault count excludes the synthetic kinds that back other features
         // (bank logins, insurance logins, general notes) so the figure matches
         // what the user actually sees on the Vault tile.
@@ -228,8 +226,6 @@ public sealed partial class DashboardPage : Page
         CountBanks.Text     = banks.Count(b => !b.IsClosed).ToString();
         CountInsurance.Text = ins.Count.ToString();
         CountNotes.Text     = notes.Count.ToString();
-        var tried = recipes.Count(r => r.IsTried);
-        CountRecipes.Text   = $"{tried}/{recipes.Count}";
     }
 
     // ---------------- Recent notes ----------------
@@ -347,7 +343,6 @@ public sealed partial class DashboardPage : Page
     private void OpenVault_Tapped(object s, TappedRoutedEventArgs e)       => _nav.NavigateInShell("vault");
     private void OpenBanks_Tapped(object s, TappedRoutedEventArgs e)       => _nav.NavigateInShell("banks");
     private void OpenNotes_Tapped(object s, TappedRoutedEventArgs e)       => _nav.NavigateInShell("notes");
-    private void OpenRecipes_Tapped(object s, TappedRoutedEventArgs e)     => _nav.NavigateInShell("recipes");
 
     private void ShowError(string msg)
     {

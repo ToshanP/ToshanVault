@@ -33,7 +33,7 @@
             </Grid.RowDefinitions>
 
             <StackPanel Grid.Row="0">
-                <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Retirement Income / Expense" />
+                <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Retirement Cashflow" />
                 <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            Text="Annual amounts (Jan 2025 baseline). Weekly is calculated as Annual ÷ 52." />

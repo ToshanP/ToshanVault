@@ -81,4 +81,253 @@ public class RetirementGoldTests
         got!.PricePerGram24k.Should().Be(200);
         got.FetchedAt.Should().BeCloseTo(fresh, TimeSpan.FromSeconds(1));
     }
+
+    [TestMethod]
+    public void MintInvestmentCalculator_AccumulatesCashAndPhysicalGold()
+    {
+        var plan = new MintInvestmentPlan
+        {
+            AccountStartDate = new DateOnly(2026, 1, 1),
+            FortnightlyContributionAud = 500,
+            WorkingUnitOunces = 1,
+            PricePerOunceAud = 1500,
+            ConsolidationTargetOunces = 10,
+        };
+        var due = new DateOnly(2026, 1, 29);
+        var purchases = new[]
+        {
+            new MintInvestmentPurchase
+            {
+                DueDate = due,
+                CompletedDate = due,
+                Ounces = 1,
+                PricePerOunceAud = 1500,
+            },
+        };
+
+        var summary = MintInvestmentCalculator.Summarise(plan, purchases, due);
+
+        summary.ContributionsToDate.Should().Be(1500);
+        summary.CompletedPurchaseCost.Should().Be(1500);
+        summary.MintAccountCash.Should().Be(0);
+        summary.PhysicalOunces.Should().Be(1);
+        summary.PhysicalValue.Should().Be(1500);
+    }
+
+    [TestMethod]
+    public void MintInvestmentCalculator_ReplaysCompletedPurchasesAfterAssumptionChange()
+    {
+        var plan = new MintInvestmentPlan
+        {
+            AccountStartDate = new DateOnly(2026, 1, 1),
+            FortnightlyContributionAud = 500,
+            WorkingUnitOunces = 1,
+            PricePerOunceAud = 5000,
+            ConsolidationTargetOunces = 10,
+        };
+        var purchases = new[]
+        {
+            new MintInvestmentPurchase
+            {
+                DueDate = new DateOnly(2026, 1, 29),
+                CompletedDate = new DateOnly(2026, 1, 29),
+                Ounces = 1,
+                PricePerOunceAud = 2500,
+            },
+        };
+
+        var rows = MintInvestmentCalculator.GenerateSchedule(
+            plan,
+            purchases,
+            new DateOnly(2026, 2, 1),
+            futureRows: 1);
+
+        rows.Should().ContainSingle();
+        rows[0].DueDate.Should().Be(new DateOnly(2026, 7, 16));
+        rows[0].CompletedDate.Should().BeNull();
+        rows[0].EstimatedCost.Should().Be(5000);
+    }
+
+    [TestMethod]
+    public void MintInvestmentCalculator_KeepsOverdueUntickedPurchasesInSchedule()
+    {
+        var plan = new MintInvestmentPlan
+        {
+            AccountStartDate = new DateOnly(2026, 1, 1),
+            FortnightlyContributionAud = 500,
+            WorkingUnitOunces = 1,
+            PricePerOunceAud = 1500,
+            ConsolidationTargetOunces = 10,
+        };
+
+        var rows = MintInvestmentCalculator.GenerateSchedule(
+            plan,
+            Array.Empty<MintInvestmentPurchase>(),
+            new DateOnly(2026, 2, 10),
+            futureRows: 2);
+
+        rows.Should().HaveCount(2);
+        rows[0].DueDate.Should().Be(new DateOnly(2026, 1, 29));
+        rows[0].CompletedDate.Should().BeNull();
+        rows[1].DueDate.Should().Be(new DateOnly(2026, 3, 12));
+    }
+
+    [TestMethod]
+    public void MintInvestmentCalculator_GeneratesScheduleWhenRemindersDisabled()
+    {
+        var plan = new MintInvestmentPlan
+        {
+            Enabled = false,
+            AccountStartDate = new DateOnly(2026, 1, 1),
+            FortnightlyContributionAud = 500,
+            WorkingUnitOunces = 1,
+            PricePerOunceAud = 1500,
+            ConsolidationTargetOunces = 10,
+        };
+
+        var rows = MintInvestmentCalculator.GenerateSchedule(
+            plan,
+            Array.Empty<MintInvestmentPurchase>(),
+            new DateOnly(2026, 1, 1),
+            futureRows: 1);
+
+        rows.Should().ContainSingle();
+        rows[0].DueDate.Should().Be(new DateOnly(2026, 1, 29));
+    }
+
+    [TestMethod]
+    public void MintInvestmentCalculator_ProjectsYearValuesFromFortnightlyFunding()
+    {
+        var plan = new MintInvestmentPlan
+        {
+            AccountStartDate = new DateOnly(2026, 1, 1),
+            FortnightlyContributionAud = 500,
+            WorkingUnitOunces = 1,
+            PricePerOunceAud = 1500,
+            ConsolidationTargetOunces = 10,
+        };
+        var rows = MintInvestmentCalculator.ProjectYearValues(
+            plan,
+            Array.Empty<MintInvestmentPurchase>(),
+            new[] { new DateOnly(2026, 1, 29), new DateOnly(2026, 2, 26) },
+            forecastFrom: plan.AccountStartDate);
+
+        rows.Should().HaveCount(2);
+        rows[0].ContributedThisYear.Should().Be(1500);
+        rows[0].TotalContributed.Should().Be(1500);
+        rows[0].MintAccountCash.Should().Be(0);
+        rows[0].PhysicalOunces.Should().Be(1);
+        rows[0].PhysicalValue.Should().Be(1500);
+        rows[0].TotalValue.Should().Be(1500);
+        rows[1].ContributedThisYear.Should().Be(1000);
+        rows[1].TotalContributed.Should().Be(2500);
+        rows[1].MintAccountCash.Should().Be(1000);
+        rows[1].PhysicalOunces.Should().Be(1);
+        rows[1].TotalValue.Should().Be(2500);
+    }
+
+    [TestMethod]
+    public void MintInvestmentCalculator_ProjectsCompletedPurchasesByCompletionDate()
+    {
+        var plan = new MintInvestmentPlan
+        {
+            AccountStartDate = new DateOnly(2026, 1, 1),
+            FortnightlyContributionAud = 500,
+            WorkingUnitOunces = 1,
+            PricePerOunceAud = 1500,
+        };
+        var purchases = new[]
+        {
+            new MintInvestmentPurchase
+            {
+                DueDate = new DateOnly(2026, 1, 29),
+                CompletedDate = new DateOnly(2026, 2, 2),
+                Ounces = 1,
+                PricePerOunceAud = 1500,
+            },
+        };
+
+        var rows = MintInvestmentCalculator.ProjectYearValues(
+            plan,
+            purchases,
+            new[] { new DateOnly(2026, 1, 31), new DateOnly(2026, 2, 28) },
+            forecastFrom: new DateOnly(2026, 3, 1));
+
+        rows[0].PhysicalOunces.Should().Be(0);
+        rows[0].MintAccountCash.Should().Be(1500);
+        rows[0].TotalValue.Should().Be(1500);
+        rows[1].PhysicalOunces.Should().Be(1);
+        rows[1].MintAccountCash.Should().Be(1000);
+        rows[1].TotalValue.Should().Be(2500);
+    }
+
+    [TestMethod]
+    public void MintInvestmentCalculator_CompletedPurchaseSuppressesSameCycleForecastBuy()
+    {
+        var plan = new MintInvestmentPlan
+        {
+            AccountStartDate = new DateOnly(2026, 1, 1),
+            FortnightlyContributionAud = 4000,
+            WorkingUnitOunces = 1,
+            PricePerOunceAud = 1500,
+        };
+        var purchases = new[]
+        {
+            new MintInvestmentPurchase
+            {
+                DueDate = new DateOnly(2026, 1, 1),
+                CompletedDate = new DateOnly(2026, 1, 1),
+                Ounces = 1,
+                PricePerOunceAud = 1500,
+            },
+        };
+
+        var rows = MintInvestmentCalculator.ProjectYearValues(
+            plan,
+            purchases,
+            new[] { new DateOnly(2026, 1, 1) },
+            forecastFrom: plan.AccountStartDate);
+
+        rows.Should().ContainSingle();
+        rows[0].PhysicalOunces.Should().Be(1);
+        rows[0].MintAccountCash.Should().Be(2500);
+        rows[0].TotalValue.Should().Be(4000);
+    }
+
+    [TestMethod]
+    public async Task MintInvestmentRepository_PersistsPlanAndPurchases()
+    {
+        using var f = await TestDbFactory.CreateMigratedAsync();
+        var repo = new MintInvestmentRepository(f);
+        var plan = new MintInvestmentPlan
+        {
+            AccountStartDate = new DateOnly(2026, 2, 1),
+            FortnightlyContributionAud = 500,
+            WorkingUnitOunces = 1,
+            PricePerOunceAud = 5200,
+            ReminderLeadDays = 10,
+            ConsolidationTargetOunces = 10,
+            Notes = "Perth Mint account",
+        };
+
+        await repo.UpsertPlanAsync(plan);
+        var saved = await repo.GetPlanAsync();
+
+        saved.AccountStartDate.Should().Be(new DateOnly(2026, 2, 1));
+        saved.PricePerOunceAud.Should().Be(5200);
+        saved.FortnightlyContributionAud.Should().Be(500);
+
+        await repo.UpsertCompletedPurchaseAsync(new MintInvestmentPurchase
+        {
+            DueDate = new DateOnly(2026, 4, 26),
+            CompletedDate = new DateOnly(2026, 4, 27),
+            Ounces = 1,
+            PricePerOunceAud = 5200,
+        });
+
+        var purchases = await repo.GetPurchasesAsync();
+        purchases.Should().ContainSingle();
+        purchases[0].CompletedDate.Should().Be(new DateOnly(2026, 4, 27));
+        purchases[0].Ounces.Should().Be(1);
+    }
 }

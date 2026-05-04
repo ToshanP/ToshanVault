@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="ToshanVault_App.Pages.MintInvestmentPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer Padding="24,16,24,24" VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Mint Investment" />
+                    <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               Text="Perth Mint-style funding schedule: $500/fortnight into the Mint account, buy 1 oz working units when funded, and consolidate around 10 oz." />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Button Content="Use current gold price" Click="UseCurrentPrice_Click" />
+                    <Button Content="Save" Click="Save_Click" Style="{StaticResource AccentButtonStyle}" />
+                </StackPanel>
+            </Grid>
+
+            <InfoBar x:Name="InfoBar" IsClosable="True" IsOpen="False" />
+
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="16">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Plan settings" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <Grid ColumnSpacing="14" RowSpacing="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <ToggleSwitch x:Name="EnabledSwitch"
+                                      Grid.Column="0"
+                                      Header="Enable reminders"
+                                      OnContent="On"
+                                      OffContent="Off" />
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Perth Mint account start date" Style="{StaticResource CaptionTextBlockStyle}" />
+                            <CalendarDatePicker x:Name="AccountStartDateBox" HorizontalAlignment="Stretch" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Fortnightly funding (AUD)" Style="{StaticResource CaptionTextBlockStyle}" />
+                            <NumberBox x:Name="FortnightlyContributionBox" Minimum="0" SmallChange="50" LargeChange="500"
+                                       SpinButtonPlacementMode="Compact" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="3">
+                            <TextBlock Text="1 oz price assumption (AUD)" Style="{StaticResource CaptionTextBlockStyle}" />
+                            <NumberBox x:Name="PricePerOunceBox" Minimum="0" SmallChange="100" LargeChange="1000"
+                                       SpinButtonPlacementMode="Compact" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="1" Grid.Column="0">
+                            <TextBlock Text="Working unit size (oz)" Style="{StaticResource CaptionTextBlockStyle}" />
+                            <NumberBox x:Name="WorkingUnitOuncesBox" Minimum="0" SmallChange="0.25" LargeChange="1"
+                                       SpinButtonPlacementMode="Compact" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="1">
+                            <TextBlock Text="Consolidate target (oz)" Style="{StaticResource CaptionTextBlockStyle}" />
+                            <NumberBox x:Name="ConsolidationTargetBox" Minimum="1" SmallChange="1" LargeChange="10"
+                                       SpinButtonPlacementMode="Compact" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="2">
+                            <TextBlock Text="Reminder lead days" Style="{StaticResource CaptionTextBlockStyle}" />
+                            <NumberBox x:Name="ReminderLeadDaysBox" Minimum="0" Maximum="90" SmallChange="1" LargeChange="7"
+                                       SpinButtonPlacementMode="Compact" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="3">
+                            <TextBlock Text="Notes" Style="{StaticResource CaptionTextBlockStyle}" />
+                            <TextBox x:Name="NotesBox" PlaceholderText="Optional" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="14">
+                    <StackPanel>
+                        <TextBlock Text="Mint account cash" Opacity="0.7" />
+                        <TextBlock x:Name="CashText" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="14">
+                    <StackPanel>
+                        <TextBlock Text="Physical gold recorded" Opacity="0.7" />
+                        <TextBlock x:Name="OuncesText" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="14">
+                    <StackPanel>
+                        <TextBlock Text="Physical value" Opacity="0.7" />
+                        <TextBlock x:Name="ValueText" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="3" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="14">
+                    <StackPanel>
+                        <TextBlock Text="Consolidation status" Opacity="0.7" />
+                        <TextBlock x:Name="ConsolidationText" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="16">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Purchase schedule" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock x:Name="ScheduleHintText"
+                               TextWrapping="Wrap"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <ListView x:Name="ScheduleList" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

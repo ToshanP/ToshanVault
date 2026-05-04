@@ -103,7 +103,6 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" HorizontalAlignment="Center" Tapped="OpenVault_Tapped">
                         <TextBlock x:Name="CountVault" HorizontalAlignment="Center" Style="{StaticResource TitleTextBlockStyle}" />
@@ -120,10 +119,6 @@
                     <StackPanel Grid.Column="3" HorizontalAlignment="Center" Tapped="OpenNotes_Tapped">
                         <TextBlock x:Name="CountNotes" HorizontalAlignment="Center" Style="{StaticResource TitleTextBlockStyle}" />
                         <TextBlock Text="Notes" HorizontalAlignment="Center" Opacity="0.6" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="4" HorizontalAlignment="Center" Tapped="OpenRecipes_Tapped">
-                        <TextBlock x:Name="CountRecipes" HorizontalAlignment="Center" Style="{StaticResource TitleTextBlockStyle}" />
-                        <TextBlock Text="Recipes" HorizontalAlignment="Center" Opacity="0.6" />
                     </StackPanel>
                 </Grid>
             </Border>

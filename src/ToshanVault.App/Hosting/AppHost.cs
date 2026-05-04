@@ -46,11 +46,11 @@ public static class AppHost
         sc.AddSingleton<BudgetItemRepository>();
         sc.AddSingleton<RetirementItemRepository>();
         sc.AddSingleton<RetirementPlanRepository>();
+        sc.AddSingleton<MintInvestmentRepository>();
         sc.AddSingleton<GoldItemRepository>();
         sc.AddSingleton<GoldPriceCacheRepository>();
         sc.AddSingleton<VaultEntryRepository>();
         sc.AddSingleton<VaultFieldRepository>();
-        sc.AddSingleton<RecipeRepository>();
         sc.AddSingleton<BankAccountRepository>();
         sc.AddSingleton<BankAccountCredentialRepository>();
         sc.AddSingleton<BankCredentialsService>();
@@ -66,6 +66,7 @@ public static class AppHost
         sc.AddSingleton<IdleLockService>();
         sc.AddSingleton<NavigationService>();
         sc.AddSingleton<GoldPriceService>();
+        sc.AddSingleton<MintInvestmentReminderService>();
 
         _services = sc.BuildServiceProvider(validateScopes: true);
     }

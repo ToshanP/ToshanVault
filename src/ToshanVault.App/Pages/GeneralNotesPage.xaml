@@ -17,7 +17,7 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel>
-                <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="General Notes" />
+                <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Notes" />
                 <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            Text="Free-form encrypted notes. Drag tiles to reorder." />

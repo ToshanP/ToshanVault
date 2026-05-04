@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -16,14 +18,18 @@ public sealed partial class RetirementPlanningPage : Page
 {
     private static readonly CultureInfo Aud = CultureInfo.GetCultureInfo("en-AU");
     private readonly RetirementPlanRepository _repo;
+    private readonly MintInvestmentRepository _mintRepo;
     private readonly ObservableCollection<YearRow> _yearRows = new();
     private readonly ObservableCollection<GoldRow> _goldRows = new();
     private readonly ObservableCollection<CombinedRow> _combinedRows = new();
+    private MintInvestmentPlan _mintPlan = new();
+    private IReadOnlyList<MintInvestmentPurchase> _mintPurchases = Array.Empty<MintInvestmentPurchase>();
 
     public RetirementPlanningPage()
     {
         InitializeComponent();
         _repo = AppHost.GetService<RetirementPlanRepository>();
+        _mintRepo = AppHost.GetService<MintInvestmentRepository>();
         YearGrid.ItemsSource = _yearRows;
         GoldGrid.ItemsSource = _goldRows;
         CombinedGrid.ItemsSource = _combinedRows;
@@ -32,11 +38,20 @@ public sealed partial class RetirementPlanningPage : Page
 
     private async Task LoadAsync()
     {
-        var p = await _repo.GetAsync();
+        var retirementTask = _repo.GetAsync();
+        var mintPlanTask = _mintRepo.GetPlanAsync();
+        var mintPurchasesTask = _mintRepo.GetPurchasesAsync();
+        await Task.WhenAll(retirementTask, mintPlanTask, mintPurchasesTask);
+
+        var p = await retirementTask;
+        _mintPlan = await mintPlanTask;
+        _mintPurchases = await mintPurchasesTask;
+
         LoanNameBox.Text     = p.LoanName;
         PrincipalBox.Value   = p.Principal;
         RateBox.Value        = p.AnnualRatePct;
         TermBox.Value        = p.TermYears;
+        MinimumPaymentBox.Value = p.MinimumPaymentPerPeriod;
         ExtraBox.Value       = p.ExtraPerPeriod;
         NotesBox.Text        = p.Notes ?? string.Empty;
         StartDateBox.Date    = ToDto(p.StartDate);
@@ -46,9 +61,6 @@ public sealed partial class RetirementPlanningPage : Page
             RepaymentFrequency.Monthly     => 2,
             _                              => 1,
         };
-        GoldPerPeriodBox.Value  = p.GoldPerPeriod;
-        GoldGrowthBox.Value     = p.GoldGrowthPct;
-        GoldStartDateBox.Date   = ToDto(p.GoldStartDate);
         Recalculate();
     }
 
@@ -77,15 +89,11 @@ public sealed partial class RetirementPlanningPage : Page
         AnnualRatePct  = NumOrZero(RateBox.Value),
         TermYears      = (int)Math.Max(1, NumOrZero(TermBox.Value)),
         Frequency      = CurrentFrequency(),
+        MinimumPaymentPerPeriod = NumOrZero(MinimumPaymentBox.Value),
         ExtraPerPeriod = NumOrZero(ExtraBox.Value),
         StartDate      = StartDateBox.Date is { } d
             ? DateOnly.FromDateTime(d.LocalDateTime.Date)
             : DateOnly.FromDateTime(DateTime.Today),
-        GoldPerPeriod  = NumOrZero(GoldPerPeriodBox.Value),
-        GoldGrowthPct  = NumOrZero(GoldGrowthBox.Value),
-        GoldStartDate  = GoldStartDateBox.Date is { } gd
-            ? DateOnly.FromDateTime(gd.LocalDateTime.Date)
-            : new DateOnly(2028, 5, 1),
         Notes          = string.IsNullOrWhiteSpace(NotesBox.Text) ? null : NotesBox.Text.Trim(),
     };
 
@@ -112,12 +120,24 @@ public sealed partial class RetirementPlanningPage : Page
                 return;
             }
 
-            var withExtra    = MortgageCalculator.Amortize(p.Principal, p.AnnualRatePct, p.TermYears,
-                                                           p.Frequency, p.ExtraPerPeriod, p.StartDate);
-            var withoutExtra = MortgageCalculator.Amortize(p.Principal, p.AnnualRatePct, p.TermYears,
-                                                           p.Frequency, 0,                p.StartDate);
-            var gold         = GoldAccumulator.Project(p.GoldPerPeriod, p.GoldGrowthPct, p.Frequency,
-                                                       p.StartDate, p.GoldStartDate, withExtra.PeriodsToPayoff);
+            if (p.MinimumPaymentPerPeriod <= 0)
+            {
+                ShowInfo("Enter a minimum repayment greater than zero.", error: true);
+                return;
+            }
+
+            var withExtra    = MortgageCalculator.AmortizeWithMinimumPayment(
+                p.Principal, p.AnnualRatePct, p.Frequency, p.MinimumPaymentPerPeriod, p.ExtraPerPeriod, p.StartDate);
+            var withoutExtra = MortgageCalculator.AmortizeWithMinimumPayment(
+                p.Principal, p.AnnualRatePct, p.Frequency, p.MinimumPaymentPerPeriod, 0, p.StartDate);
+            var gold = MintInvestmentCalculator.ProjectYearValues(
+                _mintPlan,
+                _mintPurchases,
+                withExtra.YearSummaries.Select(y => y.YearEnd).ToList(),
+                DateOnly.FromDateTime(DateTime.Today));
+            var finalGold = gold.Count == 0 ? null : gold[^1];
+            var finalGoldValue = finalGold?.TotalValue ?? 0;
+            var finalGoldContributed = finalGold?.TotalContributed ?? 0;
 
             var saved = withoutExtra.TotalInterest - withExtra.TotalInterest;
             var yearsActual = withExtra.PeriodsToPayoff / (double)MortgageCalculator.PeriodsPerYear(p.Frequency);
@@ -128,14 +148,14 @@ public sealed partial class RetirementPlanningPage : Page
             ActualLabel.Text        = withExtra.ActualPayment.ToString("C0", Aud);
             ActualSubLabel.Text     = p.ExtraPerPeriod > 0
                 ? $"includes {p.ExtraPerPeriod.ToString("C0", Aud)} extra"
-                : "no extra payment";
+                : "minimum only";
             PayoffDateLabel.Text    = withExtra.PayoffDate.ToString("MMM yyyy", Aud);
             PayoffSubLabel.Text     = $"{yearsActual:F1} yr ({withExtra.PeriodsToPayoff} payments)";
             InterestLabel.Text      = withExtra.TotalInterest.ToString("C0", Aud);
             SavingsLabel.Text       = saved > 1 ? $"Saving {saved.ToString("C0", Aud)} vs no extra" : "";
-            GoldFinalLabel.Text     = gold.FinalValue.ToString("C0", Aud);
-            GoldContribLabel.Text   = $"contributed {gold.TotalContributed.ToString("C0", Aud)}";
-            NetLabel.Text           = gold.FinalValue.ToString("C0", Aud);
+            GoldFinalLabel.Text     = finalGoldValue.ToString("C0", Aud);
+            GoldContribLabel.Text   = $"Mint contributed {finalGoldContributed.ToString("C0", Aud)}";
+            NetLabel.Text           = finalGoldValue.ToString("C0", Aud);
             YearsLabel.Text         = $"{yearsActual:F1} years";
             YearsSubLabel.Text      = $"debt-free {withExtra.PayoffDate:MMM yyyy}";
 
@@ -144,7 +164,7 @@ public sealed partial class RetirementPlanningPage : Page
             {
                 var y = withExtra.YearSummaries[i];
                 _yearRows.Add(new YearRow(y));
-                var g = i < gold.YearValues.Count ? gold.YearValues[i] : null;
+                var g = i < gold.Count ? gold[i] : null;
                 if (g is not null) _goldRows.Add(new GoldRow(g));
                 _combinedRows.Add(new CombinedRow(y, g));
             }
@@ -156,17 +176,17 @@ public sealed partial class RetirementPlanningPage : Page
             var halfwayDate = AddPeriods(p.StartDate, Math.Max(1, halfwayPeriod), p.Frequency);
             AddDate(KeyDatesPanel, "Halfway point", halfwayDate,
                 $"Loan ~50% paid down (after {halfwayPeriod} payments)", "#f5a623");
-            AddDate(KeyDatesPanel, "Gold accumulation begins", p.GoldStartDate,
-                $"{p.GoldPerPeriod.ToString("C0", Aud)} per {FreqAdjective(p.Frequency)} @ {p.GoldGrowthPct:F1}% growth", "#f5a623");
+            AddDate(KeyDatesPanel, "Mint Investment begins", _mintPlan.AccountStartDate,
+                $"{_mintPlan.FortnightlyContributionAud.ToString("C0", Aud)} per fortnight; buys {_mintPlan.WorkingUnitOunces:N1} oz when funded", "#f5a623");
             AddDate(KeyDatesPanel, "Loan cleared", withExtra.PayoffDate,
                 $"Debt-free! Saved {saved.ToString("C0", Aud)} in interest.", "#4cd964");
-            AddDate(KeyDatesPanel, "Gold balance at payoff", withExtra.PayoffDate,
-                $"≈ {gold.FinalValue.ToString("C0", Aud)} ({gold.TotalContributed.ToString("C0", Aud)} contributed)", "#af52de");
+            AddDate(KeyDatesPanel, "Mint value at payoff", withExtra.PayoffDate,
+                $"≈ {finalGoldValue.ToString("C0", Aud)} ({finalGoldContributed.ToString("C0", Aud)} contributed)", "#af52de");
 
             // ---- Combined Plan tab ----
             CombinedSubtitle.Text = $"{p.LoanName} · {p.Principal.ToString("C0", Aud)} @ {p.AnnualRatePct:F2}% · {FreqAdjective(p.Frequency)} · started {p.StartDate:MMM yyyy}";
             CombinedGoalLine1.Text = $"Debt-free by\n{withExtra.PayoffDate:MMM yyyy}";
-            CombinedGoalLine2.Text = $"{yearsActual:F1} years · {gold.FinalValue.ToString("C0", Aud)} gold buffer";
+            CombinedGoalLine2.Text = $"{yearsActual:F1} years · {finalGoldValue.ToString("C0", Aud)} Mint gold buffer";
 
             SnapLoanName.Text   = p.LoanName;
             SnapPrincipal.Text  = $"Principal: {p.Principal.ToString("C0", Aud)}";
@@ -174,8 +194,8 @@ public sealed partial class RetirementPlanningPage : Page
             SnapPaymentSub.Text = p.ExtraPerPeriod > 0
                 ? $"+ {p.ExtraPerPeriod.ToString("C0", Aud)} extra"
                 : "base scheduled payment";
-            SnapGold.Text       = $"{p.GoldPerPeriod.ToString("C0", Aud)} / {FreqAdjective(p.Frequency)[..3]}";
-            SnapGoldSub.Text    = $"from {p.GoldStartDate:MMM yyyy} @ {p.GoldGrowthPct:F1}% / yr";
+            SnapGold.Text       = $"{_mintPlan.FortnightlyContributionAud.ToString("C0", Aud)} / ftn";
+            SnapGoldSub.Text    = $"from {_mintPlan.AccountStartDate:MMM yyyy}; {_mintPlan.WorkingUnitOunces:N1} oz units";
             SnapInterest.Text   = saved > 0 ? saved.ToString("C0", Aud) : "—";
             SnapInterestSub.Text = saved > 0 ? "vs no extra payment" : "no extra payment yet";
 
@@ -183,26 +203,32 @@ public sealed partial class RetirementPlanningPage : Page
             var phaseEnd1 = AddPeriods(p.StartDate, Math.Min(withExtra.PeriodsToPayoff, MortgageCalculator.PeriodsPerYear(p.Frequency) * 2), p.Frequency);
             BuildTimelineDot(0, "🏠", "Loan start",        $"{p.StartDate:MMM yyyy}",     "Begin payoff",       "#4a9af5", "#1e3f7a");
             BuildTimelineDot(1, "🎯", "Halfway",           $"{halfwayDate:MMM yyyy}",     "~50% paid down",     "#4cd964", "#1a3a1a");
-            BuildTimelineDot(2, "🥇", "Gold begins",       $"{p.GoldStartDate:MMM yyyy}", "Build the buffer",   "#f5a623", "#2a1f0e");
+            BuildTimelineDot(2, "🥇", "Mint begins",       $"{_mintPlan.AccountStartDate:MMM yyyy}", "Build the buffer",   "#f5a623", "#2a1f0e");
             BuildTimelineDot(3, "🏆", "Loan cleared",      $"{withExtra.PayoffDate:MMM yyyy}", "Debt-free!",     "#af52de", "#251e38");
             BuildTimelineDot(4, "🏖", "Onwards",           "Retirement",                  "Live off buffer",    "#f5a623", "#1a3a6e");
 
             Phase1Period.Text = $"{p.StartDate:MMM yyyy} → {halfwayDate:MMM yyyy}";
             Phase2Period.Text = $"~{halfwayDate:MMM yyyy}";
-            Phase3Period.Text = $"From {p.GoldStartDate:MMM yyyy}";
+            Phase3Period.Text = $"From {_mintPlan.AccountStartDate:MMM yyyy}";
+            Phase3MintLine.Inlines.Clear();
+            Phase3MintLine.Inlines.Add(new Run { Text = $"› {_mintPlan.FortnightlyContributionAud.ToString("C0", Aud)}/fortnight to Mint Investment" });
+            Phase3MintLine.Inlines.Add(new LineBreak());
+            Phase3MintLine.Inlines.Add(new Run { Text = $"› Buys {_mintPlan.WorkingUnitOunces:N1} oz units when funded" });
+            Phase3MintLine.Inlines.Add(new LineBreak());
+            Phase3MintLine.Inlines.Add(new Run { Text = "› Long-term wealth buffer" });
             Phase4Period.Text = $"From {withExtra.PayoffDate:MMM yyyy}";
 
             // Gold sidebar (sample every ~2 years)
-            GoldSidebarSub.Text = $"{p.GoldPerPeriod.ToString("C0", Aud)} per {FreqAdjective(p.Frequency)} from {p.GoldStartDate:MMM yyyy}";
+            GoldSidebarSub.Text = $"{_mintPlan.FortnightlyContributionAud.ToString("C0", Aud)} per fortnight from {_mintPlan.AccountStartDate:MMM yyyy}";
             var sidebar = new System.Collections.Generic.List<SidebarRow>();
-            for (var i = 0; i < gold.YearValues.Count; i++)
+            for (var i = 0; i < gold.Count; i++)
             {
-                if (i == 0 || (i + 1) % 2 == 0 || i == gold.YearValues.Count - 1)
+                if (i == 0 || (i + 1) % 2 == 0 || i == gold.Count - 1)
                 {
-                    var v = gold.YearValues[i];
+                    var v = gold[i];
                     sidebar.Add(new SidebarRow(
                         $"{v.YearEnd:yyyy}",
-                        v.EndingValue.ToString("C0", Aud)));
+                        v.TotalValue.ToString("C0", Aud)));
                 }
             }
             GoldSidebarRows.ItemsSource = sidebar;
@@ -210,7 +236,7 @@ public sealed partial class RetirementPlanningPage : Page
             // Combined key dates panel (right side, copy of left styled the same way)
             AddDate(CombinedKeyDatesPanel, "Today",           DateOnly.FromDateTime(DateTime.Today), "Start", "#4a9af5");
             AddDate(CombinedKeyDatesPanel, "Halfway",         halfwayDate,         "~50% paid down",     "#f5a623");
-            AddDate(CombinedKeyDatesPanel, "Gold begins",     p.GoldStartDate,     $"{p.GoldPerPeriod.ToString("C0", Aud)} / {FreqAdjective(p.Frequency)[..3]}", "#f5a623");
+            AddDate(CombinedKeyDatesPanel, "Mint begins",     _mintPlan.AccountStartDate,     $"{_mintPlan.FortnightlyContributionAud.ToString("C0", Aud)} / ftn", "#f5a623");
             AddDate(CombinedKeyDatesPanel, "Loan cleared",    withExtra.PayoffDate, $"Saved {saved.ToString("C0", Aud)}", "#4cd964");
 
             ShowInfo(null);
@@ -336,14 +362,18 @@ public sealed partial class RetirementPlanningPage : Page
         public int    YearNumber       { get; }
         public string YearEndText      { get; }
         public string ContributedText  { get; }
-        public string EndingValueText  { get; }
+        public string MintCashText     { get; }
+        public string PhysicalOuncesText { get; }
+        public string TotalValueText   { get; }
 
-        public GoldRow(GoldAccumulator.YearValue v)
+        public GoldRow(MintInvestmentCalculator.YearProjection v)
         {
             YearNumber      = v.YearNumber;
             YearEndText     = v.YearEnd.ToString("MMM yyyy", Aud);
-            ContributedText = v.Contributed.ToString("C0", Aud);
-            EndingValueText = v.EndingValue.ToString("C0", Aud);
+            ContributedText = v.ContributedThisYear.ToString("C0", Aud);
+            MintCashText = v.MintAccountCash.ToString("C0", Aud);
+            PhysicalOuncesText = $"{v.PhysicalOunces:N1} oz";
+            TotalValueText = v.TotalValue.ToString("C0", Aud);
         }
     }
 
@@ -355,12 +385,12 @@ public sealed partial class RetirementPlanningPage : Page
         public string GoldValueText    { get; }
         public string NetText          { get; }
 
-        public CombinedRow(MortgageCalculator.YearSummary y, GoldAccumulator.YearValue? g)
+        public CombinedRow(MortgageCalculator.YearSummary y, MintInvestmentCalculator.YearProjection? g)
         {
             YearNumber      = y.YearNumber;
             YearEndText     = y.YearEnd.ToString("MMM yyyy", Aud);
             LoanBalanceText = y.EndingBalance.ToString("C0", Aud);
-            var goldVal = g?.EndingValue ?? 0;
+            var goldVal = g?.TotalValue ?? 0;
             GoldValueText   = goldVal.ToString("C0", Aud);
             NetText         = (goldVal - y.EndingBalance).ToString("C0", Aud);
         }

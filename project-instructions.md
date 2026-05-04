@@ -10,10 +10,11 @@
 A single-user, single-PC Windows 11 desktop app that replaces `Toshan.xlsx` and provides
 a searchable, encrypted, portable home for:
 
-- **Budget** — monthly budget, retirement forecast (Jan 2025 baseline), gold ornaments
+- **Budget** — monthly budget and day-to-day finance planning
 - **Vault (ImportantDetails)** — bank accounts, website logins, memberships, secret Q&A
-- **Recipes** — YouTube-based recipe library with notes
-- **Closed Accounts** — archive of closed bank accounts
+- **Jewellery** — physical gold/jewellery inventory and estimated value
+- **Mortgage Payoff + Mint Investment** — loan payoff plan with Mint-backed gold projection
+- **Notes** — free-form encrypted notes, including anything that no longer needs a dedicated feature
 
 ---
 
@@ -35,7 +36,6 @@ a searchable, encrypted, portable home for:
 | D12 | Project layout | App / Core / Data / Importer / Tests |
 | D13 | DataGrid | `CommunityToolkit.WinUI.UI.Controls.DataGrid` v7.1.2 (v8 toolkit dropped DataGrid) |
 | D14 | Charts | `LiveChartsCore.SkiaSharpView.WinUI` 2.0 RC |
-| D15 | Markdown notes | `Markdig` (recipes notes rendering) |
 
 ---
 
@@ -66,7 +66,6 @@ ToshanVault.sln  (slnx format)
 ```
 C:\Work\ToshanVault\
 ├── project-instructions.md              (this file — source of truth)
-├── Book1.xlsx                           (recipe source spreadsheet)
 ├── ToshanVault.slnx
 ├── App\                                 (single-file publish output)
 │   ├── ToshanVault.App.exe              (~98 MB self-extracting)
@@ -82,10 +81,7 @@ C:\Work\ToshanVault\
 └── tools\
     ├── publish-single.ps1               (single-file publish script)
     ├── seed-retirement.ps1              (seed 16 retirement rows)
-    ├── seed-gold.ps1                    (seed 54 gold ornament rows)
-    ├── seed-recipes.ps1                 (seed 80 recipes from SQL)
-    ├── seed-recipes.sql                 (generated recipe INSERT statements)
-    └── parse-recipes-xlsx.js            (Excel→SQL converter for recipes)
+    └── seed-gold.ps1                    (seed 54 gold ornament rows)
 ```
 
 Plan + todo tracking live in session workspace:
@@ -102,7 +98,6 @@ Plan + todo tracking live in session workspace:
 | App | `CommunityToolkit.WinUI.Controls.SettingsControls` | 8.2.250402 | Settings page cards |
 | App | `Microsoft.Extensions.DependencyInjection` | 9.0.0 | DI container |
 | App | `LiveChartsCore.SkiaSharpView.WinUI` | 2.0.0-rc5.4 | Retirement projection chart |
-| App | `Markdig` | 0.38.0 | Recipe notes markdown |
 | Core | `CommunityToolkit.Mvvm` | 8.4.0 | Observable models |
 | Data | `Microsoft.Data.Sqlite` | 9.0.0 | SQLite ADO |
 | Data | `Dapper` | 2.1.66 | Lightweight ORM |
@@ -170,13 +165,6 @@ vault_entry(id INTEGER PK, kind TEXT, name TEXT, category TEXT, tags TEXT,
             updated_at TEXT, created_at TEXT);
 vault_field(id INTEGER PK, entry_id INTEGER, label TEXT,
             value_enc BLOB, iv BLOB, tag BLOB, is_secret INTEGER);
-
--- Recipes
-recipe(id INTEGER PK, title TEXT, author TEXT, cuisine TEXT, rating INTEGER,
-       youtube_url TEXT, thumbnail_path TEXT, notes_md TEXT, is_favourite INTEGER,
-       is_tried INTEGER DEFAULT 0, category TEXT DEFAULT 'Other',
-       added_at TEXT);
-recipe_tag(recipe_id INTEGER, tag TEXT, PRIMARY KEY(recipe_id, tag));
 
 -- Bank accounts (active + closed in one table; Phase 5c)
 bank_account(id INTEGER PK,
@@ -265,6 +253,33 @@ web_credential(id INTEGER PK,
 -- AFTER DELETE trigger trg_web_credential_after_delete removes linked vault_entry
 -- ONLY IF vault_entry_id != entry_id (legacy back-filled rows point to self).
 -- Back-fill: existing entries with username/password fields → owner='Toshan'.
+
+-- Mint Investment (migration 022)
+-- Operational Perth Mint-style schedule, separate from jewellery inventory and
+-- jewellery inventory. Fortnightly funding accumulates in the model until it can
+-- fund the configured working unit (currently 1 oz by default); ticking a purchase
+-- records actual physical ounces and reduces calculated Mint account cash.
+mint_investment_plan(id INTEGER PK CHECK (id=1),
+    enabled INTEGER NOT NULL DEFAULT 1,
+    account_start_date TEXT NOT NULL,
+    fortnightly_contribution_aud REAL NOT NULL DEFAULT 500,
+    working_unit_ounces REAL NOT NULL DEFAULT 1,
+    price_per_ounce_aud REAL NOT NULL,
+    reminder_lead_days INTEGER NOT NULL DEFAULT 14,
+    consolidation_target_ounces REAL NOT NULL DEFAULT 10,
+    notes TEXT);
+mint_investment_purchase(due_date TEXT PK,
+    completed_date TEXT NOT NULL,
+    ounces REAL NOT NULL,
+    price_per_ounce_aud REAL NOT NULL,
+    notes TEXT);
+-- Retirement Planning mortgage payoff (migration 023)
+-- Payoff projection uses entered minimum repayment + additional repayment per
+-- period. `term_years` remains for original-loan reference/dashboard display,
+-- but it no longer drives the period payment used by the calculator.
+-- Mortgage Payoff no longer owns editable gold assumptions. Its Gold Projection
+-- and Combined Plan views read Mint Investment plan + completed purchases.
+retirement_plan.minimum_payment_per_period REAL NOT NULL DEFAULT 0;
 ```
 
 Migrations live in `Data\Migrations\*.sql` and are applied in order based on
@@ -278,14 +293,17 @@ Migrations live in `Data\Migrations\*.sql` and are applied in order based on
 2. Dashboard (KPI tiles + recent activity)
 3. Budget → Monthly | Retirement | Gold (Pivot inside page)
 4. Vault — grouped by category (collapsible banners), owner-initial credential avatars per entry
-5. Recipes — GridView + WebView2 detail
-6. Bank Accounts — list with masked BSB/acct#, owner-initial credential avatars, edit / notes popup / close
-7. Insurance — renewal countdown tiles, owner-initial credential avatars with Q&A
-8. Settings — security / data / integrations / about
-9. First-run Import Wizard
+5. Banking — list with masked BSB/acct#, owner-initial credential avatars, edit / notes popup / close
+6. Insurance — renewal countdown tiles, owner-initial credential avatars with Q&A
+7. Retirement Cashflow — retirement income and expense inputs
+8. Mortgage Payoff — mortgage repayment calculator; Combined Plan and Gold Projection are backed by Mint Investment data
+9. Mint Investment — Perth Mint account funding schedule, tickable 1 oz purchases, Mint cash + physical ounces summary
+10. Settings — security / data / integrations / about
+11. First-run Import Wizard
 
 **Shared UI components:**
-- **NotesWindow** — standalone `Window` (not ContentDialog) for full-height rich text editing. Called via `NotesWindow.ShowAsync(title, existingRtf)` → returns `(bool saved, string? newRtf)`. Used by: Bank Accounts, Vault items, Insurance policies, General Notes.
+- **NotesWindow** — standalone `Window` (not ContentDialog) for full-height rich text editing. Called via `NotesWindow.ShowAsync(title, existingRtf)` → returns `(bool saved, string? newRtf)`. Used by: Bank Accounts, Vault items, Insurance policies, Notes tile-click editing.
+- **GeneralNoteDialog** — Notes add/edit metadata dialog. Sized to ~90% of host window, stretches the rich text editor, and scrolls attachment overflow.
 - **OwnerPickerDialog** — `ContentDialog` listing available owners (from `KnownOwners` minus existing). Used by: Bank Accounts, Insurance, Vault before opening a credential dialog.
 - **RichNotesField** — reusable `UserControl` with RichEditBox + toolbar (bold/italic/underline, font, size, colours). Wrapped inside NotesWindow for the full-height experience.
 - **AttachmentsPanel** — reusable panel with file-picker + decrypt-open + delete. Used by Bank, Vault, Insurance edit dialogs.
@@ -301,17 +319,17 @@ Migrations live in `Data\Migrations\*.sql` and are applied in order based on
 |---|-------|--------|-------|
 | 1 | scaffold | ✅ done | Solution + 5 projects + NuGet packages added; build green at x64; rename TosanVault→ToshanVault complete (2026-05-02). I1 + I2 resolved; see §11. |
 | 2 | auth-encryption | ✅ done | `ToshanVault.Core/Security/*` (PBKDF2 KEK + verifier, AES-GCM, Vault lifecycle, exceptions) + `ToshanVault.Data/Schema/*` (MigrationRunner, MetaRepository, 001_init.sql for `meta` table). 26/26 tests pass; `dotnet test` working (resolves I6 for non-UI tests). Three-reviewer adversarial pass triggered hardening (DB-level write-once via plain INSERT, iter-count pinning, init zeroise-on-failure, 4-byte schema_ver, VaultMeta IDisposable, Hello extension seam). UI integration (login screen, idle lock, clipboard timer) deferred to later phases. |
-| 3 | data-layer | ✅ done | All 9 §7 tables in `002_data.sql`, domain models, Dapper repos (with snake↔Pascal mapping, enum-as-text, ISO DateTimeOffset). Adversarial review by 3 models (gpt-5.3-codex, claude-opus-4.6, gpt-5.4) — all FIX-AND-SHIP. Fixes: (a) `gold_price_cache` UPSERT guarded by `excluded.fetched_at > current` so stale fetches can't clobber fresh; (b) `budget_item.category_id` FK switched from `ON DELETE CASCADE` → `ON DELETE RESTRICT` to prevent silent child loss; (c) `VaultFieldRepository` Insert/Update wrap UTF-8 plaintext in try/finally + `CryptographicOperations.ZeroMemory` (matches existing decrypt-path discipline); (d) `RecipeRepository.SetTagsAsync` adds explicit catch + `RollbackAsync`; (e) dropped `ux_budget_category_name` (not in spec). Deferred: I8 (Vault TOCTOU + IClock), I9 (MetaRepository generic API), I10 (cross-repo unit-of-work). 43/43 tests pass; build green. |
+| 3 | data-layer | ✅ done | All §7 tables in `002_data.sql`, domain models, Dapper repos (with snake↔Pascal mapping, enum-as-text, ISO DateTimeOffset). Adversarial review by 3 models (gpt-5.3-codex, claude-opus-4.6, gpt-5.4) — all FIX-AND-SHIP. Fixes: (a) `gold_price_cache` UPSERT guarded by `excluded.fetched_at > current` so stale fetches can't clobber fresh; (b) `budget_item.category_id` FK switched from `ON DELETE CASCADE` → `ON DELETE RESTRICT` to prevent silent child loss; (c) `VaultFieldRepository` Insert/Update wrap UTF-8 plaintext in try/finally + `CryptographicOperations.ZeroMemory` (matches existing decrypt-path discipline); (d) dropped `ux_budget_category_name` (not in spec). Deferred: I8 (Vault TOCTOU + IClock), I9 (MetaRepository generic API), I10 (cross-repo unit-of-work). 43/43 tests pass; build green. |
 | 4 | importer | 🔧 partial / ⚠ blocked | `XlsxSanitizer` shipped + 7 tests pass. Strips `xl/drawings/`, `xl/media/`, `xl/charts/`, `xl/embeddings/`, `xl/diagrams/` parts and patches `[Content_Types].xml`, sheet `.rels`, sheet XML `<drawing>/<legacyDrawing>/<legacyDrawingHF>/<picture>` refs. Works around ClosedXML 0.104.2/0.105.0 picture-name validation crash on real `Toshan.xlsx`. Sheet readers + `ImportService` **paused** pending user re-organization of `Toshan.xlsx` into one-sheet-per-table with headers (3 of 4 sheets are free-form text blocks — see I11). Adversarial review (gpt-5.3-codex, FIX-AND-SHIP) closed: added `<legacyDrawingHF>` strip. 50/50 tests pass. |
 | 5e | insurance | ✅ done | First-class `insurance` entity (migration 010): insurer/policy#/type (free text)/website/renewal_date + nullable FK to `vault_entry` (kind=`insurance_login`) for credentials. `InsuranceRepository` (Dapper CRUD, sorted by renewal nulls-last); `InsuranceCredentialsService` mirrors `WebCredentialsService` with `insurance.*` label prefix and lazy vault_entry creation on first non-empty save; supports username/password/notes (single set, not multi-owner — joint policies deferred). Attachment table CHECK extended via 12-step rename-rebuild-copy recipe (preserves all existing rows + recreates indexes/triggers); new `trg_attachment_after_insurance_delete` and `trg_insurance_after_delete` cascades. New `DateOnly`/`DateOnly?` Dapper handlers in `DapperSetup` for `renewal_date`. `InsurancePage` (search + tile grid; renewal countdown badge — red ≤30d, amber ≤60d), `InsuranceDialog` (with attachments panel), `InsuranceCredentialsDialog` (username/password/RichNotes). Wired into `MainShellPage` (shield glyph \uE83D) and DI in `AppHost`. Build green; **84/84 tests pass** (+8 new InsuranceRepository + InsuranceCredentialsService tests covering round-trip, FK SET NULL on entry delete, cascade on insurance delete, lazy-no-create on empty save, narrow LoadLabels). |
-| 5f | multi-owner-credentials | ✅ done | Extended Insurance and Vault to multi-owner credentials (matching Bank Accounts pattern). Migration 019 (insurance_credential) + 020 (web_credential). Services rewritten: `InsuranceCredentialsService.SaveAsync(insuranceId, owner, entryName, fields)` and `WebCredentialsService.SaveCredentialsAsync(entryId, owner, entryName, fields)`. New repos: `InsuranceCredentialRepository`, `WebCredentialRepository`. UI: owner-initial avatar buttons with `OwnerPickerDialog`, delete support. Insurance dialog now includes Q&A (10 pairs). All existing credentials back-filled as owner='Toshan'. Build green; **129/129 tests pass**. |
+| 5f | multi-owner-credentials | ✅ done | Extended Insurance and Vault to multi-owner credentials (matching Bank Accounts pattern). Migration 019 (insurance_credential) + 020 (web_credential). Services rewritten: `InsuranceCredentialsService.SaveAsync(insuranceId, owner, entryName, fields)` and `WebCredentialsService.SaveCredentialsAsync(entryId, owner, entryName, fields)`. New repos: `InsuranceCredentialRepository`, `WebCredentialRepository`. UI: owner-initial avatar buttons with `OwnerPickerDialog`, delete support. Insurance dialog now includes Q&A (10 pairs). All existing credentials back-filled as owner='Toshan'. Build green at delivery; current suite is 124 tests after Recipes removal. |
 | 5g | notes-popup | ✅ done | Extracted notes editing into standalone `NotesWindow` (separate `Window`, not ContentDialog) for full-height rich text editing. Notes icon buttons replace inline notes in edit dialogs. Insurance.notes column added (plaintext, migration via `MigrateNotesToColumnAsync` decrypts old vault_field notes). Notes removed from Bank Account edit dialogs, Insurance edit dialogs — now accessed via dedicated icon on each tile. Build green; tests pass. |
 | 5d | attachments + rich notes + multi-owner bank + tile previews | ✅ done | Several user-driven UX deltas merged (post-5c, pre-5e): (1) **Attachments** — migration 009 polymorphic `attachment` table; `AttachmentService` AES-GCM encrypts payloads with the vault DEK; `AttachmentsPanel` reusable WinUI control with file-picker + open-temp-decrypted + delete; wired into `BankAccountDialog` and `VaultEntryDialog` (existing rows only). (2) **Rich notes** — `RichNotesField` reusable RichEditBox wrapper with bold/italic/underline + font + size + foreground/background colour pickers; persisted as RTF in encrypted vault_field rows (`varbinary(max)`-equivalent BLOB). Bank Notes + Bank-credentials Notes + Vault Additional-Details all migrated to RichNotesField. (3) **Multi-owner bank credentials** — migration 006 `bank_account_credential` table + label `bank_login.*` namespace; `BankCredentialsService` rewritten for owner-keyed save/load; tile actions show male/female icons (\uE13D / \uE13E) per owner instead of "Edit/Toshan/Devangini" buttons. (4) **Bank dialog adds** — Website + Card PIN + Phone-banking PIN encrypted fields (PINs via `SecretFieldHelpers`). (5) **Vault tile preview** — Number + Website narrow-decrypted via new `WebCredentialsService.LoadLabelsAsync(IReadOnlyCollection<string>)` (Dapper IN expansion); tile grew 240×140→260×170. `VaultPage.OnNavigatedTo` has dedicated `catch (VaultLockedException) { _nav.NavigateToLogin(); }` to defeat the swallow-by-broad-catch H finding. (6) **App-wide UX** — `MainWindow.Maximize` re-asserted on activation (full screen on launch); `LoginPage` master-password autofocus (immediate Focus → Low-priority dispatcher → PasswordBox.Loaded fallbacks); Enter-on-login fires the unlock button; per-tile-page `AutoSuggestBox` search across name/owner/number/website. All work passed Anvil 🟡/🔴 reviews; tests grew 63→76→84. |
 | 5c | bank-accounts | ✅ done | Single `bank_account` table with `is_closed` flag (Option A); migration 003 drops legacy `closed_account` stub. Domain: `BankAccount` POCO + `BankAccountType` enum (incl. `Mortgage`; `interest_rate_pct` retained for future retirement plan). Repo: Insert/Update validation, transactional+idempotent `CloseAsync`, `ReopenAsync` (throws if not closed), `GetActive`/`GetClosed`. Internet-banking credentials (username, client_id, password, up to 10 Q/A pairs) stored in vault_entry (kind='bank_login') + vault_field encrypted at rest per §6; FK `vault_entry_id ON DELETE SET NULL`. `BankAccountsPage` (list + Add/Edit/Credentials/Close) with masked BSB (hidden) and account# (last 4); `ClosedAccountsPage` rewritten to show closed rows with Reopen. Three new dialogs (`BankAccountDialog`, `CredentialsDialog`, `CloseConfirmDialog`); credentials dialog uses `UpsertFieldAsync` that deletes empty fields rather than persisting empty encrypted blobs. Build green; 57/57 tests pass (+7 new BankAccountRepository tests, -1 obsolete ClosedAccount test); smoke launch alive ≥8 s; three-reviewer pass per Anvil 🔴 protocol. |
-| 5a | app-foundation | ✅ done | `AppHost` (MEDI composition root, idempotent `Build()` from `App.OnLaunched`), `AppPaths` (`%LOCALAPPDATA%\ToshanVault\vault.db`, env override `TOSHANVAULT_DATA_DIR`), `IdleLockService` (1Hz `DispatcherTimer`, `GetLastInputInfo` probe, default 10 min), `NavigationService`, `LoginPage` (first-run vs unlock, runs migrations on `OnNavigatedTo`, 750 ms backoff stub on `WrongPasswordException`), `MainShellPage` (NavigationView with 5 main + Lock/About + Settings, idle-lock event wiring), 5 placeholder pages (Dashboard/Budget/Vault/Recipes/ClosedAccounts). Re-pivoted from Phase 4 (xlsx blocked on free-form spreadsheet) so UI exists to drive data shape. Build green; 50/50 prior tests still pass. Smoke launch verified (required `<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>` — see I12). App test ref dropped: WindowsAppSDK auto-init `<Module>` cctor crashes `dotnet test` (see I12). |
+| 5a | app-foundation | ✅ done | `AppHost` (MEDI composition root, idempotent `Build()` from `App.OnLaunched`), `AppPaths` (`%LOCALAPPDATA%\ToshanVault\vault.db`, env override `TOSHANVAULT_DATA_DIR`), `IdleLockService` (1Hz `DispatcherTimer`, `GetLastInputInfo` probe, default 10 min), `NavigationService`, `LoginPage` (first-run vs unlock, runs migrations on `OnNavigatedTo`, 750 ms backoff stub on `WrongPasswordException`), `MainShellPage` (NavigationView with main + Lock/About + Settings, idle-lock event wiring), placeholder pages for early navigation. Re-pivoted from Phase 4 (xlsx blocked on free-form spreadsheet) so UI exists to drive data shape. Build green; 50/50 prior tests still pass. Smoke launch verified (required `<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>` — see I12). App test ref dropped: WindowsAppSDK auto-init `<Module>` cctor crashes `dotnet test` (see I12). |
 | 5b | budget-pages | ✅ done | Weekly Budget page (Income / Fixed / Variable) shipped |
 | 6 | vault-page | ✅ done | Vault with category grouping, coloured banners, drag-drop |
-| 7 | recipes-page | ✅ done | Recipes grid with tried marker, category, import from xlsx |
+| 7 | recipes-page | ✅ removed | Removed from app; recipe data is expected to live in Notes or external sheets. Migration 024 drops legacy `recipe`/`recipe_tag` tables. |
 | 8 | closed-accounts-page | ✅ done | Integrated into bank-accounts with is_closed flag |
 | 9 | dashboard | ✅ done | 7-tile dashboard with KPIs, backup button, nav integration |
 | 10 | settings-backup | ⏳ | |
@@ -366,7 +384,7 @@ dotnet run --project src\ToshanVault.App\ToshanVault.App.csproj -c Debug -p:Plat
 Tests:
 ```powershell
 dotnet test tests\ToshanVault.Tests\ToshanVault.Tests.csproj -c Debug -p:Platform=x64
-# 133/133 passing as of 2026-05-03.
+# 127 total, 123 passing, 4 skipped after Mint-backed mortgage projection.
 ```
 
 Single-file publish:
@@ -380,8 +398,6 @@ Seed scripts (run AFTER app creates the DB on first launch):
 ```powershell
 pwsh tools\seed-retirement.ps1    # 16 retirement income/expense rows
 pwsh tools\seed-gold.ps1          # 54 gold ornament rows
-node tools\parse-recipes-xlsx.js  # regenerates tools\seed-recipes.sql from Book1.xlsx
-pwsh tools\seed-recipes.ps1       # 80 recipes from the generated SQL
 ```
 
 Only `Debug|x64` and `Release|x64` solution configurations are declared in
@@ -403,11 +419,11 @@ WinUI 3 packaged apps cannot run on `AnyCPU` and we only ship Win 11 x64.
 | I7 | Low | PBKDF2 KEK = 200 000 / verifier = 100 000 iterations are below current OWASP 2024 baseline (~600 000 SHA-256) | Matches §6 spec and was a deliberate user choice during phase 2 planning (2026-05-02). Defer to a future "crypto-hardening" mini-phase: bump constants, add a one-shot migration that re-derives verifier and re-wraps DEK on next unlock. Iter counts are validated against `CryptoConstants` on read so attacker-driven downgrade via DB tamper is rejected. |
 | I8 | Low | `VaultFieldRepository` operations are TOCTOU-vulnerable to concurrent `Vault.Lock()`; auto-stamped `UpdatedAt` uses `DateTimeOffset.UtcNow` directly (no `IClock`/`TimeProvider`) which makes timestamp tests rely on `Task.Delay` | Acceptable for single-user / single-window MVP. Revisit when (a) introducing background workers that may touch the vault, or (b) writing flake-prone time-sensitive tests. Add `TimeProvider` injection + DEK ref-count or repo-level lock guard at that point. |
 | I9 | Low | `MetaRepository` only exposes bootstrap-key APIs; no generic typed get/set for non-vault meta keys (`gold_api_key_enc`, `gold_api_iv`, `idle_minutes`, `clip_seconds`, etc.) | Add generic `Get(key)`/`Set(key, value)` API alongside the write-once bootstrap APIs in the **settings-backup** phase (#10). Bootstrap keys must remain write-once via the existing typed API. |
-| I10 | Low | Repos always open their own connection; no cross-repo transactional unit-of-work for aggregate writes (vault_entry+fields, recipe+tags batch, importer multi-table inserts) | Acceptable now — only `RecipeRepository.SetTagsAsync` needs intra-repo transactions and already has one. Add a `IUnitOfWork`/transaction-aware overload pattern before **importer** (#4) so it can roll back the whole xlsx ingest on failure. |
+| I10 | Low | Repos always open their own connection; no cross-repo transactional unit-of-work for aggregate writes (vault_entry+fields, importer multi-table inserts) | Acceptable now. Add a `IUnitOfWork`/transaction-aware overload pattern before resuming **importer** (#4) so it can roll back whole multi-table ingests on failure. |
 | I11 | Med | `Toshan.xlsx` is hand-curated free-form text (3 of 4 sheets blank-row-separated label/value blocks, not tabular); does not map to §7 schema. Full importer (sheet readers + `ImportService`) blocked. | User to manually re-organize source xlsx into one-sheet-per-table with first-row headers matching §7 column names; importer phase resumes after. `XlsxSanitizer` landed independently — needed regardless to defeat ClosedXML drawing-name validation crash on the real file. **2026-05-02 update**: re-organize attempt only changed 2 of 8 sheets (Budget shrank, two new headerless sheets added). User pivoted to "build entry UI first, then re-format spreadsheet to match what UI accepts". |
 | I12 | Med | `Microsoft.WindowsAppSDK` 2.0.x emits a `<Module>` static cctor (`AutoInitialize.InitializeWindowsAppSDK`) into every consuming assembly; it calls `Bootstrap.Initialize` on first type load. (a) Crashes `dotnet test` with `COMException 0x80040154 REGDB_E_CLASSNOTREG` if the test project references `ToshanVault.App` — even with `<WindowsAppSdkBootstrapInitialize>false</WindowsAppSdkBootstrapInitialize>` set on the test project (the cctor is baked into App.dll). (b) Crashes the published exe with the same error if the WinAppSDK 2.0 framework runtime isn't installed system-wide on the target machine (only 1.4–1.8 are present on this box). | (a) Don't reference `ToshanVault.App` from `ToshanVault.Tests`; rely on Tier 3 smoke launch for App-only verification (and consider extracting `Hosting/`+`Services/` into a `ToshanVault.AppShared` non-WinUI lib if test coverage of `AppHost`/`IdleLockService` becomes critical). (b) Set `<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>` in `ToshanVault.App.csproj` so `dotnet publish -r win-x64 --self-contained true` bundles the WinAppSDK runtime DLLs (~248 MB output). Confirmed working — published exe stays alive ≥8 s on launch. |
-| I13 | ~~High~~ Resolved 2026-05-02 | `FileOpenPicker.PickSingleFileAsync()` on the **Gold Ornaments** Import button threw `COMException 0x80004005 (E_FAIL)` with an empty `Message` — InfoBar showed "Error" with no detail. Same code pattern works on `RecipesPage`, ruling out hwnd init / threading. Suspected cause: `SuggestedStartLocation = PickerLocationId.Desktop` resolves to a OneDrive-redirected folder that the unpackaged WinUI 3 picker cannot enumerate. | (a) Removed `SuggestedStartLocation` from `GoldOrnamentsPage.Import_Click`. (b) Wrapped picker call in inner try/catch → on failure, falls back to the known `C:\Work\ToshanVault\Toshan.xlsx` via the existing "Use Toshan.xlsx?" confirm dialog. (c) Switched all `catch (Exception ex) { ShowError(ex.Message); }` in `GoldOrnamentsPage` to `ShowError(FormatError(ex))` which walks `InnerException` chain + appends log path — so future "blank Error" InfoBars become impossible. (d) Added Serilog file logging app-wide so the next E_FAIL leaves a stack-trace on disk (see §13 Logging). |
-| I14 | Low | Recipes page Import xlsx may hit the same `0x80004005` if user environment has the Desktop redirection issue | Apply the same picker-fallback pattern to `RecipesPage.Import_Click` as a follow-up. Currently working in this user's environment so deferred. |
+| I13 | ~~High~~ Resolved 2026-05-02 | `FileOpenPicker.PickSingleFileAsync()` on the **Gold Ornaments** Import button threw `COMException 0x80004005 (E_FAIL)` with an empty `Message` — InfoBar showed "Error" with no detail. Suspected cause: `SuggestedStartLocation = PickerLocationId.Desktop` resolves to a OneDrive-redirected folder that the unpackaged WinUI 3 picker cannot enumerate. | (a) Removed `SuggestedStartLocation` from `GoldOrnamentsPage.Import_Click`. (b) Wrapped picker call in inner try/catch → on failure, falls back to the known `C:\Work\ToshanVault\Toshan.xlsx` via the existing "Use Toshan.xlsx?" confirm dialog. (c) Switched all `catch (Exception ex) { ShowError(ex.Message); }` in `GoldOrnamentsPage` to `ShowError(FormatError(ex))` which walks `InnerException` chain + appends log path — so future "blank Error" InfoBars become impossible. (d) Added Serilog file logging app-wide so the next E_FAIL leaves a stack-trace on disk (see §13 Logging). |
+| I14 | ~~Low~~ Obsolete 2026-05-04 | Recipes page picker fallback | Recipes feature removed; no follow-up needed. |
 
 ---
 
@@ -435,25 +451,29 @@ WinUI 3 packaged apps cannot run on `AnyCPU` and we only ship Win 11 x64.
 | 2026-05-02 | **Phase 4 partial: `XlsxSanitizer` landed**. ClosedXML 0.104.2 (and 0.105.0) crashes on `Toshan.xlsx` with `ArgumentException: Picture names cannot contain :\/?*[]` — no `LoadOptions` flag bypasses it. Wrote `src\ToshanVault.Importer\XlsxSanitizer.cs` (~165 lines) that strips drawing/media/chart/embedding/diagram parts, patches `[Content_Types].xml` Overrides, sheet `_rels` Relationships (drawing/vmlDrawing/chart/image/oleObject types), and sheet XML descendants (`<drawing>`, `<legacyDrawing>`, `<legacyDrawingHF>`, `<picture>`). Idempotent, non-mutating to source. 7 new MSTest tests (50/50 total green). Adversarial review (gpt-5.3-codex, 🟢 risk → 1 reviewer): FIX-AND-SHIP — caught missing `<legacyDrawingHF>` strip; fixed | ClosedXML upstream bug; sanitizer is the cheapest workaround |
 | 2026-05-02 | **Phase 4 paused** at sanitizer. Probed `Toshan.xlsx` with sanitizer + ClosedXML: 4 sheets total — Budget (mega-sheet, no headers, income+expense in different column blocks), ImportantDetails (free-form blank-row-separated label/value blocks), Receipes (mostly tabular), Closed Accounts (free-form bank blocks). 3 of 4 sheets do not map to §7 schema. Per-sheet readers + `ImportService` deferred until user manually re-organizes xlsx into one-sheet-per-table format. Logged as I11 | User decision after sheet probe |
 | 2026-05-02 | **Re-sequenced: Phase 4 importer paused, Phase 5 split into 5a (app-foundation) + 5b (budget-pages)**. User reorganized xlsx twice but only 2 of 8 sheets gained tabular form; rather than block on spreadsheet shape, build the entry UI first so the forms reveal what column shape `Toshan.xlsx` should take. Importer resumes after Phase 9 (dashboard) | User decision after second xlsx probe |
-| 2026-05-02 | **Recipes feature shipped** (import + grid CRUD). Reused Phase 3 scaffold: `recipe` table (migration 002), `Recipe` POCO, `RecipeRepository` (CRUD + tag set), and AppHost DI registration all already existed; no new migration needed. NEW `RecipesImporter` (in ToshanVault.Importer) reads the legacy `Receipes` worksheet from `Toshan.xlsx`: pipes through `XlsxSanitizer` (drops embedded pictures with invalid names that ClosedXML rejects), then iterates with **forward-fill on column A** so recipes with multiple URL rows under one name (e.g. *Butter Chicken* with 5 variant rows) become 5 grid rows that share the title — matches user's "flat grid, one row per link" decision. Rows with blank URL are dropped (separators / spacers). De-dup key is `(Title.Trim(), YoutubeUrl.Trim())` so re-imports are idempotent. NEW `RecipesPage` rewrites the placeholder stub: CommunityToolkit `DataGrid` (Title / Channel / URL / ★ Favourite, sortable, single-select, double-tap-to-edit) + `AutoSuggestBox` search + toolbar buttons (Add / Edit / Delete / 📥 Import xlsx). NEW `RecipeDialog` (title required, author/url/favourite optional). Import button uses `FileOpenPicker` initialised with `MainWindow.Hwnd`; if user cancels the picker but `C:\Work\ToshanVault\Toshan.xlsx` exists, offers it as a one-click fallback. Tier-3 smoke verified end-to-end against the real spreadsheet: 182 raw rows → 101 unique recipes inserted, second import = 0 inserted / 101 skipped. Build green; **91/91 tests pass** (+6 importer unit tests for forward-fill + blank-row drop + blank-url drop + leading-orphan drop + trim). 1-reviewer adversarial pass (gpt-5.3-codex) — no significant issues. | Recipes delivery |
+| 2026-05-02 | **Legacy Recipes feature shipped** (import + grid CRUD). This feature was later removed by user decision because recipes are better stored in Notes or the external spreadsheet. Migration 024 drops legacy `recipe`/`recipe_tag`; app code, importer, tests, and Markdig dependency were removed. | Historical note; feature no longer active |
 | 2026-05-02 | **Insurance.Owner field added** (post-5e delta). User asked for an Owner on insurance policies; clarified scope = single owner dropdown on the policy itself (mirroring `VaultEntry.Owner`) — credentials remain a single set, NOT multi-owner like bank accounts. Migration 011 = `ALTER TABLE insurance ADD COLUMN owner TEXT` (pure additive, nullable, no 12-step rebuild needed). `Insurance` POCO + `InsuranceRepository` SelectColumns/Insert/Update extended; Dapper `CustomPropertyTypeMap` resolves `owner` ↔ `Owner` automatically (no DapperSetup change). `InsuranceDialog` adds an `OwnerOptions = Enum.GetNames<VaultOwner>()` ComboBox between Insurer and PolicyNumber, defaulting to first option for new rows. `InsuranceVm` exposes Owner; tile Subtitle composes as `"Owner · Type · PolicyNumber"` with empty parts elided; search predicate matches Owner. Tests: extended round-trip Sample to set Owner=Toshan + assertion; new `Insert_AllowsNullOwner_AndUpdate_PersistsOwnerChange` covers legacy-row null path + update propagation. Build green; **85/85 tests pass** (+1). | Insurance.Owner delta |
 | 2026-05-02 | **Phase 5e (Insurance) shipped**. New first-class `insurance` entity (migration 010) with renewal-date sorting + countdown badges (red ≤30d / amber ≤60d). `InsuranceRepository` Dapper CRUD; `InsuranceCredentialsService` mirrors `WebCredentialsService` with `insurance.*` label namespace and lazy vault_entry auto-create on first non-empty save (so empty saves don't leave orphan entries). Attachment table CHECK extended to `'insurance'` via SQLite 12-step rename→rebuild→copy→drop recipe (since SQLite cannot ALTER a CHECK); old indexes + 2 cascade triggers recreated and a 3rd added (`trg_attachment_after_insurance_delete`). `trg_insurance_after_delete` cascades into the linked credentials vault_entry so policy deletion does not orphan login fields. New `DateOnly` + `DateOnly?` Dapper TypeHandlers in `DapperSetup` (Dapper has no built-in `string` ↔ `DateOnly` converter). UX: `InsurancePage` (search + tiles), `InsuranceDialog` (entity + attachments panel for existing rows), `InsuranceCredentialsDialog` (username/password/RichNotes — single creds, not multi-owner; joint policies deferred until a real example surfaces). MainShell nav item with shield glyph \uE83D. Build green; 84/84 tests pass (+8: round-trip, ordering, FK SET NULL on vault_entry delete, cascade on insurance delete, lazy-no-create on empty save, narrow `LoadLabelsAsync`). | Phase 5e delivery |
 | 2026-05-02 | **Phase 5d (multi-owner bank, rich notes, attachments, tile UX) shipped** as a series of user-driven deltas between 5c and 5e: (a) migration 006 `bank_account_credential` for joint accounts (`UNIQUE(bank_account_id, owner_label)`) — credentials moved out of the bank_account FK and into N-per-account rows so Toshan + Devangini logins coexist; tile actions render gendered icons (\uE13D / \uE13E) instead of named buttons. (b) Reusable `RichNotesField` (RichEditBox + font/size/B/I/U + foreground/background colour) persisted as RTF in encrypted `vault_field.value_enc` BLOBs; rolled out across Bank Notes, Bank-credentials Notes, Vault Additional Details (and later Insurance Notes). (c) Reusable `AttachmentsPanel` + `AttachmentService` + migration 009 polymorphic `attachment(target_kind, target_id, ...)` — payloads AES-GCM-encrypted with the vault DEK, opened by decrypting to a temp file. (d) Bank Account dialog gained Website + Card PIN + Phone-banking PIN. (e) Vault tile preview: Number + Website narrow-decrypted via new `WebCredentialsService.LoadLabelsAsync` (Dapper `IN @labels` expansion) — review caught H over-decryption + H broad-catch swallow of `VaultLockedException`; both fixed (split into `LoadAsync`/`LoadLabelsAsync`/`LoadInternalAsync`; dedicated `catch (VaultLockedException)` in `OnNavigatedTo`). (f) `MainWindow.Maximize` on launch + activation; `LoginPage` master-password autofocus (immediate `Focus(Keyboard)` → Low-priority dispatcher → PasswordBox.Loaded fallback) + Enter-to-submit; per-tile-page search via `AutoSuggestBox`. Tests grew 63→76→84 across these batches. | Phase 5d delivery |
 | 2026-05-02 | **Phase 5c (bank accounts) implementation green**. Shipped: single `bank_account` table (Option A — `is_closed` flag instead of separate archive); migration 003 forward-migrates any pre-existing `closed_account` rows (HIGH from all 3 reviewers) before dropping the legacy stub; `BankAccountRepository` with idempotent transactional `CloseAsync`/`ReopenAsync`; `BankCredentialsService` performs vault_entry create + bank_account link + per-field upsert/delete in **a single SQLite transaction** (HIGH 3/3 reviewers — closes idle-lock partial-save window); credential field labels **namespaced under `bank_login.`** (MED 3/3 — prevents collision with user-created vault fields); `BankAccountsPage` (Add/Edit/Credentials/Close with masked BSB/acct#); rewritten `ClosedAccountsPage` with Reopen action; 3 ContentDialogs (`BankAccountDialog`, `CredentialsDialog` with up to 10 Q/A pairs, `CloseConfirmDialog`); `_busy` re-entrancy guard on every async-void click handler (MED 1/3 — prevents WinUI's "one ContentDialog per XamlRoot" `COMException`); recreate-and-relink fallback when linked vault_entry is deleted externally (MED 1/3); credentials model nulled after save to minimise plaintext lifetime in managed heap (LOW). Three-reviewer adversarial pass per Anvil 🔴 protocol (gpt-5.3-codex, claude-opus-4.6, gpt-5.5) — 5 distinct issues found across 13 raw findings; all addressed and re-verified. Build green; 63/63 tests pass (+8 BankAccount repo, +5 BankCredentialsService, +1 migration data-preservation, −1 obsolete ClosedAccount stub); smoke launch alive ≥8 s; App\ bundle re-published (~248 MB self-contained). Deferred: `ReopenAsync` no-op on already-open (LOW 1/3, behaviour change conflicts with existing throw-on-not-closed test); `gemini-3-pro-preview` reviewer (still unavailable in this env). | Phase 5c delivery |
 | 2026-05-02 | **Gold Ornaments page**. Shipped: 11th nav tile reusing the pre-existing Phase 3 `gold_item` + `gold_price_cache` schema (no new migration). `GoldImporter` reads sheet "Gold Ornaments" (rows 4+, cols A=Description / B=Qty / C=Tola), defaults purity to 22K, computes `grams_calc = tola × 11.6638038`. `GoldPriceService` (App layer) fetches USD/oz from `api.gold-api.com/price/XAU` and AUD/USD from `api.frankfurter.app` (both free, no key — supersedes I4) and upserts AUD-per-gram-24K into the cache with a 1 h TTL; falls back to last cached value on network failure. Pure valuation math (`PurityFraction`, `EstimateValue`) extracted to `ToshanVault.Core.Models.GoldValueCalculator` so it's testable from the non-App test project (I12). DataGrid columns: Description / Qty / Tola / Grams / Purity / Est. Value (AUD) / Notes. Footer shows total grams + total estimated AUD. +15 tests (GoldImporter parsing + tola constant; GoldValueCalculator karat fractions + diamond/zero-price edge cases). | User asked for Gold tile w/ live price |
-| 2026-05-02 | **Recipes — Tried marker + auto-categorisation**. Migration 012 adds `recipe.is_tried INTEGER DEFAULT 0` and `recipe.category TEXT DEFAULT 'Other'`; one-shot UPDATE auto-classifies existing rows by `LOWER(title) LIKE '%egg%'`/`'%chicken%'`; second UPDATE seeds 25 known-tried titles from the user's spreadsheet image (yellow rows). New `RecipeCategorizer.Classify(title)` (Core) uses `\begg\b`/`\bchicken\b` word-boundary regex (Egg wins ties) and is wired into `RecipeRepository.Insert/Update` + `RecipesImporter`. Page now shows Tried / Category columns; rows with `IsTried=true` get a green `SystemFillColorSuccessBackgroundBrush` background via `LoadingRow`. Default sort: `is_tried ASC, category, is_favourite DESC, title` — untried rows surface at the top, grouped Chicken / Egg / Other. Dialog gains "I've tried this" checkbox + Category combo (auto-populates from title until manually changed). +11 tests (categorizer cases + word-boundary edge cases). | User request: mark recipes as tried, sort by tried + category |
+| 2026-05-02 | **Legacy Recipes — Tried marker + auto-categorisation**. Migration 012 originally added tried/category fields; after Recipes removal it is retained as a no-op to preserve migration numbering for fresh databases. | Historical note; feature no longer active |
 | 2026-05-02 | **Phase 5a (app-foundation) implementation green**. Shipped: `AppHost` (MEDI composition root with `IMetaStore`+`MetaRepository` shared-singleton via factory delegate so `Vault` and direct meta consumers see the same instance), `AppPaths`, `IdleLockService` (`Func<TimeSpan>`-injectable probe + `Win32IdleProbe.GetLastInputInfo`), `NavigationService`, `LoginPage` (first-run init vs unlock, migrations in `OnNavigatedTo`, `WrongPasswordException` → InfoBar + 750 ms backoff stub), `MainShellPage` (NavigationView with 5 main + Lock/About + Settings, 1 Hz `DispatcherTimer` driving idle-lock). Build green; 50/50 prior tests still pass. App test project ref dropped after WinAppSDK auto-init blocker (I12-a). Smoke launch initially failed with `REGDB_E_CLASSNOTREG`; fixed by `<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>` (I12-b). Three-reviewer adversarial pass per Anvil 🔴 protocol (gpt-5.3-codex, claude-opus-4.6, gpt-5.5 — gemini-3-pro-preview unavailable in this env) surfaced 1 HIGH + 4 MED findings (3 unique after dedup). Fixes applied: (a) `MainShellPage._lockRequested` re-entrancy guard prevents idle-tick + manual-lock click double-navigating to a duplicate `LoginPage`; (b) `MainShellPage.Teardown()` invoked from both `Unloaded` event and `LockAndReturnToLogin`, plus `_wired` guard so a duplicate `Loaded` cannot stack timers/event handlers on the singleton `IdleLockService`; (c) `LoginPage` XAML defaults `PasswordBox`/`ConfirmBox`/`UnlockButton` to `IsEnabled=False` and `OnNavigatedTo` enables them only after `RunAsync()` + `IsInitialisedAsync()` complete, eliminating the slow-disk race where a user could click into a half-initialised DB. Re-built, 50/50 tests still pass, smoke launch alive ≥8 s. Deferred (logged as future work): progressive backoff ladder (1 s/5 s/30 s/5 min) per UI-Mockups → Phase 6; Hello binding; theming (Mica); clipboard auto-clear (Phase 6) | Phase 5a delivery |
 | 2026-05-02 | **Serilog logging added to App** (`Hosting/Logging.cs`). Packages: `Serilog 4.2.0`, `Serilog.Sinks.File 6.0.0`, `Serilog.Sinks.Debug 3.0.0`. Rolling-daily file sink at `%LOCALAPPDATA%\ToshanVault\logs\toshanvault-YYYYMMDD.log` (retains 14 days, shared write so multiple instances are safe), plus Debug sink for VS Output. `App.xaml.cs` calls `Logging.Initialise()` before `InitializeComponent()` and wires `UnhandledException` (WinUI), `AppDomain.UnhandledException`, and `TaskScheduler.UnobservedTaskException`. Pages get a logger via `Logging.ForContext<T>()` (used in `GoldOrnamentsPage`); rolling-out to other pages is opportunistic. Library projects deliberately do NOT reference Serilog — keeps Core/Data/Importer test-portable; they raise typed exceptions and the App layer logs at the boundary. | User request — needed observability after a blank "Error" InfoBar made the picker E_FAIL undebuggable |
 | 2026-05-03 | **Project moved to `C:\Work\ToshanVault`**. User relocated the repo; all paths updated. `appsettings.json` default DB path set to `C:\Work\ToshanVault\App\VaultDb\vault.db` |
 | 2026-05-03 | **Single-file publish** (`tools\publish-single.ps1`). WinUI 3 self-contained exe (~98 MB) via `PublishSingleFile=true` + `IncludeAllContentForSelfExtract=true` + `WindowsAppSDKSelfContained=true`. First launch extracts to `%TEMP%\.net\<app>\<hash>\`. Critical fix: `AppPaths.LoadSettingsDbPath` now probes `Process.GetCurrentProcess().MainModule.FileName`'s directory first (extraction temp `AppContext.BaseDirectory` doesn't contain sidecar files). Publish script preserves `VaultDb\` folder, `*.db/*.sqlite/*.sqlite3` files, and `appsettings.json` across runs |
 | 2026-05-03 | **Dashboard shipped** (`DashboardPage.xaml/.cs`). 7 KPI tiles: Weekly Cashflow, Gold Holdings, Loan Payoff, Insurance Renewals (next 5, color-coded), Counts strip, Recent Notes, DB info + Backup button. All loads parallelised via `Task.WhenAll`. Tile taps navigate via `NavigationService.NavigateInShell(tag)` |
 | 2026-05-03 | **Missing-DB prompt**. `App.OnLaunched` checks `File.Exists(dbPath)` before `AppHost.Build()`. If missing, shows Win32 `MessageBoxW` (Yes=create, No=exit). Uses P/Invoke because no XAML host exists yet at that point |
-| 2026-05-03 | **Data loss incident & recovery**. `publish-single.ps1` originally wiped `App\` including user's `VaultDb\`; script now explicitly preserves data folders. Retirement items re-seeded via `tools\seed-retirement.ps1` (16 rows). Gold ornaments re-seeded via `tools\seed-gold.ps1` (54 items from 30/01/2022 inventory). Recipes imported from `Book1.xlsx` via `tools\parse-recipes-xlsx.js` + `tools\seed-recipes.ps1` (80 recipes, 20 tried) |
-| 2026-05-03 | **Recipe categories fixed**. Seed SQL was missing `category` and `is_tried` columns. Applied UPDATE to classify 66 Chicken / 10 Egg / 4 Other; set `is_tried=1` on 20 tried recipes. Fixed `parse-recipes-xlsx.js` to include both columns in future runs |
+| 2026-05-03 | **Data loss incident & recovery**. `publish-single.ps1` originally wiped `App\` including user's `VaultDb\`; script now explicitly preserves data folders. Retirement items re-seeded via `tools\seed-retirement.ps1` (16 rows). Gold ornaments re-seeded via `tools\seed-gold.ps1` (54 items from 30/01/2022 inventory). Legacy Recipes were also re-seeded at the time, but Recipes has since been removed and migration 024 drops those tables. |
+| 2026-05-03 | **Legacy Recipe categories fixed**. Historical note only: seed SQL was missing `category` and `is_tried` columns; this no longer applies after Recipes removal. |
 | 2026-05-03 | **Gold page: AUD → $**. Replaced all 5 "AUD" currency prefixes with "$" in `GoldOrnamentsPage.xaml.cs` and `.xaml` |
 | 2026-05-04 | **NotesWindow popup implemented**. Extracted notes editing from all edit dialogs into a standalone `Window` (`NotesWindow.xaml.cs`). Uses 90% screen width/height. RichNotesField placed inside a Grid with Auto+Star rows so the editor fills the full available height. Notes icon button (📝 glyph \uE70B) added to Bank Account, Vault, and Insurance tiles. Notes removed from edit dialog forms. Insurance: `insurance.notes` column added (plaintext, stored in DB not vault_field), with `MigrateNotesToColumnAsync()` to decrypt old vault_field notes on first navigation. General Notes page already used it. Committed: `edc0089` |
-| 2026-05-04 | **Multi-owner credentials for Insurance + Vault**. Replicated the Bank Accounts multi-owner credential pattern. Migrations 019 (`insurance_credential`) and 020 (`web_credential`) create junction tables with `UNIQUE(parent_id, owner)` + cascade delete triggers. Back-fill: existing vault_entry_id rows assigned owner='Toshan'. `InsuranceCredentialsService` fully rewritten: `SaveAsync(insuranceId, owner, entryName, fields)` creates/reuses insurance_credential row + vault_entry. `WebCredentialsService` gained `SaveCredentialsAsync(entryId, owner, entryName, fields)` (SaveAsync preserved for item-level fields). New repos: `InsuranceCredentialRepository`, `WebCredentialRepository`. UI: owner-initial avatar buttons (circular, showing first letter of owner) + "+" button for adding new owners via `OwnerPickerDialog`. `InsuranceCredentialsDialog` and `VaultCredentialsDialog` now include owner in title, Q&A (up to 10 pairs), and delete button (secondary). `KnownOwners` shared: ["Toshan","Devangini","Prachi","Saloni"]. 129/129 tests pass. Committed: `c1f0d9a` |
+| 2026-05-04 | **Multi-owner credentials for Insurance + Vault**. Replicated the Bank Accounts multi-owner credential pattern. Migrations 019 (`insurance_credential`) and 020 (`web_credential`) create junction tables with `UNIQUE(parent_id, owner)` + cascade delete triggers. Back-fill: existing vault_entry_id rows assigned owner='Toshan'. `InsuranceCredentialsService` fully rewritten: `SaveAsync(insuranceId, owner, entryName, fields)` creates/reuses insurance_credential row + vault_entry. `WebCredentialsService` gained `SaveCredentialsAsync(entryId, owner, entryName, fields)` (SaveAsync preserved for item-level fields). New repos: `InsuranceCredentialRepository`, `WebCredentialRepository`. UI: owner-initial avatar buttons (circular, showing first letter of owner) + "+" button for adding new owners via `OwnerPickerDialog`. `InsuranceCredentialsDialog` and `VaultCredentialsDialog` now include owner in title, Q&A (up to 10 pairs), and delete button (secondary). `KnownOwners` shared: ["Toshan","Devangini","Prachi","Saloni"]. Build and tests passed at delivery; current suite is 124 tests after Recipes removal. Committed: `c1f0d9a` |
 | 2026-05-04 | **User decision: keep duplicated credential pattern** per page (Bank/Insurance/Vault) rather than creating a shared credential component. Rationale: dialogs differ per domain (Bank has CardPin/PhonePin/ClientID; Insurance has Username/Password/Q&A; Vault has Username/Password/Q&A) and for a personal app the simplicity of duplicated patterns outweighs DRY concerns |
+| 2026-05-04 | **Recipes fully removed**. User decided Recipes felt out of place and should live in Notes/external sheet instead. Removed Recipes nav tile/page/dialog, dashboard count, `Recipe` model, `RecipeRepository`, importer, tests, Markdig package, seed/parser tooling, and docs references. Fresh DB path no longer creates recipe tables; migration `012_recipe_tried_category.sql` is a no-op to preserve numbering; migration `024_remove_recipes.sql` drops `recipe_tag` then `recipe` for existing DBs. Build/tests passed; app republished preserving DB/settings. Committed: `1b160b5`; published via `c900346` lineage. |
+| 2026-05-04 | **Navigation labels finalised**. Dashboard remains first. Main order: Dashboard, Budget, Vault, Insurance, Banking, Notes, Retirement Cashflow, Mortgage Payoff, Mint Investment, Jewellery. Renames: Bank Accounts→Banking, General Notes→Notes, Retirement Income / Expense→Retirement Cashflow, Retirement Planning/Mortgage Repayment→Mortgage Payoff, Gold Ornaments→Jewellery. Recipes removed. |
+| 2026-05-04 | **Notes add/edit dialog resized**. `GeneralNoteDialog` (Notes metadata/body dialog) now sizes to ~90% of host `XamlRoot`, stretches the `RichNotesField` editor, and lets attachment overflow scroll. This aligns Notes with the generic `NotesWindow` experience used by Banking/Vault/Insurance. Reviewer caught narrow-window clipping and attachment scroll edge cases; both fixed. Committed: `bae248c`; published via `379789b`. |
+| 2026-05-04 | **Mortgage Payoff gold projection now uses Mint Investment**. Mortgage Payoff keeps its Gold Projection and Combined Plan tabs, but all gold values now come from `MintInvestmentPlan` + `MintInvestmentPurchase` via `MintInvestmentCalculator.ProjectYearValues`. Removed old Mortgage-side gold inputs and stopped `RetirementPlanRepository.UpsertAsync` from writing legacy `retirement_plan.gold_*` fields, making Mint Investment the active gold source of truth. Projection accounts for fortnightly funding, actual completed purchase dates, future forecast purchases from today, Mint cash, physical ounces, and total value. Reviewers caught due-date vs completion-date accounting, stale duplicate persistence, same-cycle double-counting, and a hardcoded `$500/fortnight` label; all fixed. Tests now cover projection, completion-date accounting, and double-count prevention. Committed: `826f683`; published as `c900346`. |
 
 ---
 
@@ -625,14 +645,14 @@ copilot --resume=face5148-645d-4b5e-b4e8-1b138e9a16e9
 - 5 projects exist with all NuGet packages restored ✅
 - Project references wired correctly ✅
 - Build is **green** (`dotnet build ToshanVault.slnx -c Debug -p:Platform=x64`) ✅
-- 129 unit tests pass (4 skipped — xlsx sanitizer tests require source file) ✅
-- All major features implemented: auth, vault, budget, bank accounts, insurance, recipes, gold, retirement, dashboard
+- 127 unit tests total: 123 pass, 4 skipped (xlsx sanitizer tests require source file) ✅
+- All major features implemented: auth, vault, budget, banking, insurance, jewellery, mortgage payoff, Mint Investment, retirement cashflow, dashboard, notes
 - Multi-owner credentials on all three entity types (Bank, Insurance, Vault) ✅
-- NotesWindow popup for all note-bearing entities ✅
+- NotesWindow popup for Banking/Vault/Insurance; Notes add/edit dialog is also 90%-sized ✅
 - Single-file publish works via `tools\publish-single.ps1` ✅
-- SQLite DB at `App\VaultDb\vault.db` with seeded data (54 gold items, 80 recipes, 16 retirement items)
-- Publish script preserves VaultDb folder and *.db files
-- Migrations 001–020 applied (schema_ver=20)
+- SQLite DB at `App\VaultDb\vault.db` with seeded data (54 jewellery/gold items, 16 retirement cashflow items)
+- Publish script preserves `App\VaultDb`, direct `*.db/*.sqlite/*.sqlite3` files, and existing `App\appsettings.json`
+- Migrations 001–024 applied (schema_ver=24)
 
 ### G. Quick orientation files
 
@@ -643,8 +663,6 @@ copilot --resume=face5148-645d-4b5e-b4e8-1b138e9a16e9
 | `ToshanVault.slnx` | Solution to build / open in VS |
 | `tools\publish-single.ps1` | Single-file publish script |
 | `tools\seed-gold.ps1` | Seeds 54 gold ornament rows |
-| `tools\parse-recipes-xlsx.js` | Parses Book1.xlsx → seed-recipes.sql |
-| `tools\seed-recipes.ps1` | Runs seed-recipes.sql against vault.db |
 
 ### H. Key source files (architecture map)
 
@@ -669,20 +687,34 @@ copilot --resume=face5148-645d-4b5e-b4e8-1b138e9a16e9
 | `VaultPage.xaml/.cs` | Vault with category grouping + credential avatars |
 | `VaultDialogs.cs` | `VaultEntryDialog`, `VaultCredentialsDialog` (with Q&A + delete) |
 | `NotesWindow.xaml/.cs` | Standalone notes window (full-height RichEditBox) |
+| `GeneralNoteDialog.cs` | Notes add/edit dialog; 90%-sized rich notes + attachments |
+| `RetirementPlanningPage.xaml/.cs` | Mortgage Payoff; combined plan and gold projection read Mint Investment |
+| `MintInvestmentPage.xaml/.cs` | Mint plan settings, tickable purchase schedule, Mint cash/physical ounces |
+| `GoldOrnamentsPage.xaml/.cs` | Jewellery inventory and valuation |
+
+**Core calculators (Core layer — `src\ToshanVault.Core\Models\`):**
+| File | Purpose |
+|------|---------|
+| `MortgageCalculator.cs` | Mortgage payoff from minimum repayment + additional repayment per period |
+| `MintInvestmentCalculator.cs` | Mint cash/physical gold summary, purchase schedule, and year projection used by Mortgage Payoff |
+| `GoldAccumulator.cs` | Legacy pure periodic gold accumulator; do not use for Mortgage Payoff unless intentionally restoring old behaviour |
 
 **Migrations (Data layer — `src\ToshanVault.Data\Schema\Migrations\`):**
 | File | Content |
 |------|---------|
 | `001_init.sql` | meta table |
-| `002_data.sql` | All core tables (budget, vault, recipe, gold, retirement) |
+| `002_data.sql` | All core tables (budget, vault, gold, retirement) |
 | `003_bank_account.sql` | bank_account + migrate closed_account |
 | `006_bank_credential.sql` | bank_account_credential multi-owner |
 | `009_attachment.sql` | Polymorphic attachment table |
 | `010_insurance.sql` | insurance entity + attachment CHECK rebuild |
 | `011_insurance_owner.sql` | insurance.owner column |
-| `012_recipe_tried_category.sql` | recipe.is_tried + recipe.category |
+| `012_recipe_tried_category.sql` | No-op retained for migration numbering after Recipes removal |
 | `019_insurance_credential.sql` | insurance_credential multi-owner |
 | `020_web_credential.sql` | web_credential multi-owner |
+| `022_mint_investment.sql` | Mint Investment plan + completed purchases |
+| `023_retirement_minimum_payment.sql` | Mortgage Payoff minimum repayment per period |
+| `024_remove_recipes.sql` | Drops legacy recipe tables |
 
 ### I. Build & test commands
 
@@ -696,5 +728,7 @@ dotnet test tests\ToshanVault.Tests\ToshanVault.Tests.csproj -c Debug -p:Platfor
 # Publish single-file exe (~98 MB)
 pwsh tools\publish-single.ps1
 # Output: App\ToshanVault.App.exe + App\appsettings.json + App\VaultDb\vault.db
+# Do not launch the published app during publish verification unless you intend
+# to open/migrate the live DB. The publish script itself preserves the DB/settings.
 ```
 

@@ -20,7 +20,7 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel>
-                <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Gold Ornaments" />
+                <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Jewellery" />
                 <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            Text="Inventory of gold &amp; diamond jewellery. Tola is the Indian troy unit (1 tola = 11.6638 g)." />

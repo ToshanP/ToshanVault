@@ -48,6 +48,12 @@ public class MetaRepositoryAndMigrationTests
         // Re-running is a no-op.
         var second = await runner.RunAsync();
         second.Should().Be(0);
+
+        await using var conn = f.Open();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('recipe', 'recipe_tag');";
+        var legacyRecipeTables = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        legacyRecipeTables.Should().Be(0);
     }
 
     [TestMethod]

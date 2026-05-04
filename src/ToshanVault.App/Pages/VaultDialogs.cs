@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using ToshanVault.Core.Models;
 using ToshanVault.Data.Repositories;
+using Windows.System;
 
 namespace ToshanVault_App.Pages;
 
@@ -75,10 +76,36 @@ internal sealed class VaultEntryDialog : ContentDialog
         {
             _category.ItemsSource = existingCategories;
             string lastGoodText = existing?.Category ?? string.Empty;
+            string textAtFocus = lastGoodText;
+            bool textChangedSinceFocus = false;
+            bool tabNavigationSinceFocus = false;
+
+            _category.GotFocus += (_, _) =>
+            {
+                textAtFocus = _category.Text ?? string.Empty;
+                textChangedSinceFocus = false;
+                tabNavigationSinceFocus = false;
+            };
+            _category.KeyDown += (_, e) =>
+            {
+                if (e.Key == VirtualKey.Tab) tabNavigationSinceFocus = true;
+            };
+
             _category.TextChanged += (s, e) =>
             {
                 if (e.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
                 {
+                    if (tabNavigationSinceFocus
+                        && !textChangedSinceFocus
+                        && string.IsNullOrEmpty(s.Text)
+                        && !string.IsNullOrEmpty(textAtFocus))
+                    {
+                        s.Text = textAtFocus;
+                        tabNavigationSinceFocus = false;
+                        return;
+                    }
+
+                    textChangedSinceFocus = true;
                     lastGoodText = s.Text ?? string.Empty;
                     var q = lastGoodText.Trim();
                     s.ItemsSource = q.Length == 0
@@ -86,11 +113,14 @@ internal sealed class VaultEntryDialog : ContentDialog
                         : existingCategories.Where(c => c.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
                 }
                 else if (e.Reason == AutoSuggestionBoxTextChangeReason.SuggestionChosen
+                         && tabNavigationSinceFocus
+                         && !textChangedSinceFocus
                          && string.IsNullOrEmpty(s.Text) && !string.IsNullOrEmpty(lastGoodText))
                 {
                     // WinUI quirk: tabbing out without selecting a suggestion
                     // fires SuggestionChosen with empty text. Restore.
                     s.Text = lastGoodText;
+                    tabNavigationSinceFocus = false;
                 }
                 else if (e.Reason == AutoSuggestionBoxTextChangeReason.ProgrammaticChange)
                 {
@@ -103,9 +133,9 @@ internal sealed class VaultEntryDialog : ContentDialog
         _err = new TextBlock { Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"] };
 
         var panel = new StackPanel { Spacing = 8, Width = 560 };
+        panel.Children.Add(_category);
         panel.Children.Add(_name);
         panel.Children.Add(_owner);
-        panel.Children.Add(_category);
         panel.Children.Add(_number);
         panel.Children.Add(_website);
         panel.Children.Add(_err);
@@ -127,6 +157,11 @@ internal sealed class VaultEntryDialog : ContentDialog
             VerticalScrollMode = ScrollMode.Auto,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         };
+
+        if (existing is null)
+        {
+            Loaded += (_, _) => _name.Focus(FocusState.Programmatic);
+        }
 
         PrimaryButtonClick += OnSave;
     }

@@ -19,7 +19,7 @@
             </StackPanel>
 
             <TextBlock TextWrapping="Wrap"
-                       Text="A personal vault desktop app for securely managing family data — bank accounts, insurance, credentials, gold ornaments, recipes, budgets, retirement planning, and general notes." />
+                       Text="A personal vault desktop app for securely managing family data — banking, insurance, credentials, jewellery, budgets, mortgage payoff, retirement cashflow, Mint investment, and notes." />
 
             <StackPanel Spacing="4" Margin="0,12,0,0">
                 <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Technology" />
