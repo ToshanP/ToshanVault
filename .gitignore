@@ -15,8 +15,7 @@ VaultDb/
 /project-instructions.md
 
 # --- Build / tool output ---
-# NOTE: /App/ is intentionally tracked — it's the deployment artifact users
-# launch from. Republishing intentionally produces a diff that gets committed.
+/App/
 **/bin/
 **/obj/
 
