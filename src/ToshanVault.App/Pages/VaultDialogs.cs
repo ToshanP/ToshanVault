@@ -160,7 +160,11 @@ internal sealed class VaultEntryDialog : ContentDialog
 
         if (existing is null)
         {
-            Loaded += (_, _) => _name.Focus(FocusState.Programmatic);
+            // Defer focus so it runs after ContentDialog's own focus pass,
+            // which would otherwise auto-focus the first child (_category).
+            Loaded += (_, _) =>
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                    () => _name.Focus(FocusState.Programmatic));
         }
 
         PrimaryButtonClick += OnSave;
