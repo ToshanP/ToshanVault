@@ -243,11 +243,19 @@ internal sealed class RichNotesField
         {
             var columns = ClampWholeNumber(columnsBox.Value, 1, 12, 3);
             var rows = ClampWholeNumber(rowsBox.Value, 1, 30, 3);
-            Editor.Document.Selection.SetText(TextSetOptions.FormatRtf, BuildTableRtf(columns, rows));
+            Editor.Document.Selection.SetText(TextSetOptions.FormatRtf, BuildTableRtf(columns, rows, GetTableWidthTwips()));
             flyout.Hide();
             Editor.Focus(FocusState.Programmatic);
         };
         tableButton.Flyout = flyout;
+    }
+
+    private int GetTableWidthTwips()
+    {
+        const int twipsPerDip = 15;
+        const int fallbackWidthTwips = 9360;
+        const double editorHorizontalInsetDips = 48;
+        return ClampWholeNumber((Editor.ActualWidth - editorHorizontalInsetDips) * twipsPerDip, fallbackWidthTwips, 60000, fallbackWidthTwips);
     }
 
     private static int ClampWholeNumber(double value, int min, int max, int fallback)
@@ -256,16 +264,28 @@ internal sealed class RichNotesField
         return Math.Clamp((int)Math.Round(value), min, max);
     }
 
-    private static string BuildTableRtf(int columns, int rows)
+    private static string BuildTableRtf(int columns, int rows, int tableWidthTwips)
     {
-        const int cellWidthTwips = 1800;
+        const int tableWidthPercent = 5000;
+        var cellWidthTwips = tableWidthTwips / columns;
+        var cellWidthPercent = tableWidthPercent / columns;
         var sb = new StringBuilder(@"{\rtf1\ansi");
         for (var r = 0; r < rows; r++)
         {
-            sb.Append(@"\trowd\trgaph108\trleft0");
+            sb.Append(@"\trowd\trgaph108\trleft0\trftsWidth2\trwWidth").Append(tableWidthPercent);
             for (var c = 1; c <= columns; c++)
-                sb.Append(@"\clbrdrt\brdrs\brdrw10\clbrdrl\brdrs\brdrw10\clbrdrb\brdrs\brdrw10\clbrdrr\brdrs\brdrw10\cellx")
-                    .Append(c * cellWidthTwips);
+            {
+                var widthPercent = c == columns
+                    ? tableWidthPercent - (cellWidthPercent * (columns - 1))
+                    : cellWidthPercent;
+                var rightEdgeTwips = c == columns
+                    ? tableWidthTwips
+                    : c * cellWidthTwips;
+                sb.Append(@"\clbrdrt\brdrs\brdrw10\clbrdrl\brdrs\brdrw10\clbrdrb\brdrs\brdrw10\clbrdrr\brdrs\brdrw10\clftsWidth2\clwWidth")
+                    .Append(widthPercent)
+                    .Append(@"\cellx")
+                    .Append(rightEdgeTwips);
+            }
 
             for (var c = 0; c < columns; c++)
                 sb.Append(@"\pard\intbl \cell");
