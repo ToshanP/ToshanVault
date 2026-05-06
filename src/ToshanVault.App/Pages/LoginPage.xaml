@@ -13,9 +13,14 @@
             MaxWidth="640"
             Spacing="16"
             Padding="32">
+            <Image
+                Source="ms-appx:///Assets/VaultLogo.png"
+                Width="80"
+                Height="80"
+                HorizontalAlignment="Center" />
             <TextBlock
                 Style="{StaticResource TitleLargeTextBlockStyle}"
-                Text="🔐 Toshan &amp; Devu Vault"
+                Text="Toshan &amp; Devu Vault"
                 TextWrapping="NoWrap"
                 HorizontalAlignment="Center" />
             <TextBlock
