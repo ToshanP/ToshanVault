@@ -222,8 +222,8 @@ function Save-Ico {
 
 "Generating vault icon assets in $Assets ..."
 Save-Png  88  'Square44x44Logo.scale-200.png'
-Save-Png  24  'Square44x44Logo.targetsize-24_altform-unplated.png'
-Save-Png  48  'Square44x44Logo.targetsize-48_altform-lightunplated.png'
+Save-Png  24  'Square44x44Logo.targetsize-24_altform-unplated.png' -Transparent $true
+Save-Png  48  'Square44x44Logo.targetsize-48_altform-lightunplated.png' -Transparent $true
 Save-Png 300  'Square150x150Logo.scale-200.png'
 Save-Png  48  'LockScreenLogo.scale-200.png'
 Save-Png  50  'StoreLogo.png'
