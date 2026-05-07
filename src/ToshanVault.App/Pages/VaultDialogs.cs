@@ -5,7 +5,6 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using ToshanVault.Core.Models;
 using ToshanVault.Data.Repositories;
-using Windows.System;
 
 namespace ToshanVault_App.Pages;
 
@@ -26,9 +25,9 @@ internal sealed class VaultEntryDialog : ContentDialog
 
     private readonly VaultEntry? _existing;
     private readonly TextBox _name, _number, _website;
-    private readonly ComboBox _owner;
-    private readonly AutoSuggestBox _category;
+    private readonly ComboBox _owner, _category;
     private readonly TextBlock _err;
+    private readonly IReadOnlyList<string>? _existingCategories;
 
     public VaultEntryDialog(
         XamlRoot root,
@@ -40,6 +39,7 @@ internal sealed class VaultEntryDialog : ContentDialog
     {
         XamlRoot = root;
         _existing = existing;
+        _existingCategories = existingCategories;
         Title = existing is null ? "Add vault entry" : $"Edit · {existing.Name}";
         PrimaryButtonText = "Save";
         CloseButtonText = "Cancel";
@@ -61,79 +61,63 @@ internal sealed class VaultEntryDialog : ContentDialog
             ? existing!.Owner!
             : OwnerOptions[0];
 
-        // Free-text Category with autocomplete from existing categories so
-        // users naturally re-use group names rather than creating one-off
-        // typos that would split a group into two banners.
-        _category = new AutoSuggestBox
+        // Category: ComboBox with existing categories + "+" button to add new
+        _category = new ComboBox
         {
             Header = "Category (optional, used to group entries on the Vault page)",
-            PlaceholderText = "e.g. Government, Banking, Pets",
-            Text = existing?.Category ?? string.Empty,
+            PlaceholderText = "Select a category",
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            QueryIcon = new SymbolIcon(Symbol.Tag),
+            IsEditable = false,
         };
+        _category.Items.Add(""); // empty = no category
         if (existingCategories is { Count: > 0 })
+            foreach (var c in existingCategories) _category.Items.Add(c);
+
+        var existingCat = existing?.Category ?? string.Empty;
+        _category.SelectedItem = _category.Items.Contains(existingCat) ? existingCat : "";
+
+        var addCategoryBtn = new Button
         {
-            _category.ItemsSource = existingCategories;
-            string lastGoodText = existing?.Category ?? string.Empty;
-            string textAtFocus = lastGoodText;
-            bool textChangedSinceFocus = false;
-            bool tabNavigationSinceFocus = false;
-
-            _category.GotFocus += (_, _) =>
+            Content = new SymbolIcon(Symbol.Add),
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(4, 0, 0, 0),
+        };
+        ToolTipService.SetToolTip(addCategoryBtn, "Add new category");
+        addCategoryBtn.Click += async (_, _) =>
+        {
+            var tb = new TextBox { PlaceholderText = "New category name" };
+            var dlg = new ContentDialog
             {
-                textAtFocus = _category.Text ?? string.Empty;
-                textChangedSinceFocus = false;
-                tabNavigationSinceFocus = false;
+                XamlRoot = root,
+                Title = "New Category",
+                Content = tb,
+                PrimaryButtonText = "Add",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
             };
-            _category.KeyDown += (_, e) =>
+            if (await dlg.ShowAsync() == ContentDialogResult.Primary)
             {
-                if (e.Key == VirtualKey.Tab) tabNavigationSinceFocus = true;
-            };
+                var newCat = tb.Text?.Trim();
+                if (!string.IsNullOrEmpty(newCat) && !_category.Items.Contains(newCat))
+                    _category.Items.Add(newCat);
+                if (!string.IsNullOrEmpty(newCat))
+                    _category.SelectedItem = newCat;
+            }
+        };
 
-            _category.TextChanged += (s, e) =>
-            {
-                if (e.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
-                {
-                    if (tabNavigationSinceFocus
-                        && !textChangedSinceFocus
-                        && string.IsNullOrEmpty(s.Text)
-                        && !string.IsNullOrEmpty(textAtFocus))
-                    {
-                        s.Text = textAtFocus;
-                        tabNavigationSinceFocus = false;
-                        return;
-                    }
-
-                    textChangedSinceFocus = true;
-                    lastGoodText = s.Text ?? string.Empty;
-                    var q = lastGoodText.Trim();
-                    s.ItemsSource = q.Length == 0
-                        ? existingCategories
-                        : existingCategories.Where(c => c.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
-                }
-                else if (e.Reason == AutoSuggestionBoxTextChangeReason.SuggestionChosen
-                         && tabNavigationSinceFocus
-                         && !textChangedSinceFocus
-                         && string.IsNullOrEmpty(s.Text) && !string.IsNullOrEmpty(lastGoodText))
-                {
-                    // WinUI quirk: tabbing out without selecting a suggestion
-                    // fires SuggestionChosen with empty text. Restore.
-                    s.Text = lastGoodText;
-                    tabNavigationSinceFocus = false;
-                }
-                else if (e.Reason == AutoSuggestionBoxTextChangeReason.ProgrammaticChange)
-                {
-                    // PrefillCategory or restore — keep lastGoodText in sync.
-                    lastGoodText = s.Text ?? string.Empty;
-                }
-            };
-        }
+        var categoryRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        _category.Width = 510;
+        categoryRow.Children.Add(_category);
+        categoryRow.Children.Add(addCategoryBtn);
 
         _err = new TextBlock { Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"] };
 
         var panel = new StackPanel { Spacing = 8, Width = 560 };
-        panel.Children.Add(_category);
+        panel.Children.Add(categoryRow);
         panel.Children.Add(_name);
         panel.Children.Add(_owner);
         panel.Children.Add(_number);
@@ -158,20 +142,22 @@ internal sealed class VaultEntryDialog : ContentDialog
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         };
 
-        if (existing is null)
-        {
-            // Defer focus so it runs after ContentDialog's own focus pass,
-            // which would otherwise auto-focus the first child (_category).
-            Loaded += (_, _) =>
-                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
-                    () => _name.Focus(FocusState.Programmatic));
-        }
+        // Defer focus so it runs after ContentDialog's own focus pass,
+        // which would otherwise auto-focus the first child (_category).
+        Loaded += (_, _) =>
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                () => _name.Focus(FocusState.Programmatic));
 
         PrimaryButtonClick += OnSave;
     }
 
     /// <summary>Prefill the Category field (used by per-group "+ Add" buttons).</summary>
-    public void PrefillCategory(string category) => _category.Text = category ?? string.Empty;
+    public void PrefillCategory(string category)
+    {
+        if (!string.IsNullOrEmpty(category) && !_category.Items.Contains(category))
+            _category.Items.Add(category);
+        _category.SelectedItem = category ?? "";
+    }
 
     private void OnSave(ContentDialog sender, ContentDialogButtonClickEventArgs args)
     {
@@ -186,7 +172,7 @@ internal sealed class VaultEntryDialog : ContentDialog
         Result = _existing ?? new VaultEntry { Kind = WebCredentialsService.EntryKind };
         Result.Name = name;
         Result.Owner = (string?)_owner.SelectedItem;
-        Result.Category = N(_category.Text);
+        Result.Category = N((string?)_category.SelectedItem ?? "");
         NumberValue = N(_number.Text);
         WebsiteValue = N(_website.Text);
     }
