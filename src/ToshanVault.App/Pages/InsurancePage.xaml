@@ -115,6 +115,12 @@
                                             Width="32" Height="32" Padding="0">
                                         <FontIcon Glyph="&#xE74D;" FontSize="14" />
                                     </Button>
+                                    <Button Click="LaunchWebsite_Click" Tag="{Binding Website}"
+                                            ToolTipService.ToolTip="Open website"
+                                            Width="32" Height="32" Padding="0"
+                                            Visibility="{Binding WebsiteVisibility}">
+                                        <FontIcon Glyph="&#xE774;" FontSize="14" />
+                                    </Button>
                                 </StackPanel>
                             </Grid>
                         </Border>

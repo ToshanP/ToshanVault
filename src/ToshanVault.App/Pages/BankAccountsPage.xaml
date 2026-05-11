@@ -101,6 +101,12 @@
                                                 Visibility="{Binding CanAddCredentialVisibility}">
                                             <FontIcon Glyph="&#xE710;" FontSize="14" />
                                         </Button>
+                                        <Button Click="LaunchWebsite_Click" Tag="{Binding Website}"
+                                                ToolTipService.ToolTip="Open website"
+                                                Width="32" Height="32" Padding="0"
+                                                Visibility="{Binding WebsiteVisibility}">
+                                            <FontIcon Glyph="&#xE774;" FontSize="14" />
+                                        </Button>
                                     </StackPanel>
                                 </Grid>
                             </Border>

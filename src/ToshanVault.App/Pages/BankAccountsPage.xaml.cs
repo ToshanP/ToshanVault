@@ -170,6 +170,16 @@ public sealed partial class BankAccountsPage : Page
     }
 
     // ---- Add credential (+) — owner picker first ---------------------------
+    private async void LaunchWebsite_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string url && !string.IsNullOrWhiteSpace(url))
+        {
+            if (!url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                url = "https://" + url;
+            await Windows.System.Launcher.LaunchUriAsync(new Uri(url));
+        }
+    }
+
     private async void AddCredential_Click(object sender, RoutedEventArgs e)
     {
         if (_busy) return; _busy = true;
@@ -401,6 +411,8 @@ public sealed class BankAccountVm
         var existing = creds.Select(c => c.Owner).ToHashSet(StringComparer.OrdinalIgnoreCase);
         CanAddCredentialVisibility = BankCredentialsService.KnownOwners.Any(o => !existing.Contains(o))
             ? Visibility.Visible : Visibility.Collapsed;
+        Website = a.Website;
+        WebsiteVisibility = string.IsNullOrWhiteSpace(a.Website) ? Visibility.Collapsed : Visibility.Visible;
     }
     public BankAccount Source { get; }
     public long Id { get; }
@@ -409,6 +421,8 @@ public sealed class BankAccountVm
     public string AccountType { get; }
     public string MaskedBsb { get; }
     public string MaskedAccountNumber { get; }
+    public string? Website { get; }
+    public Visibility WebsiteVisibility { get; }
     public ObservableCollection<CredentialAvatarVm> Credentials { get; }
     public Visibility CanAddCredentialVisibility { get; }
 

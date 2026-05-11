@@ -261,6 +261,16 @@ public sealed partial class InsurancePage : Page
     }
 
     // ---- Delete ------------------------------------------------------------
+    private async void LaunchWebsite_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string url && !string.IsNullOrWhiteSpace(url))
+        {
+            if (!url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                url = "https://" + url;
+            await Windows.System.Launcher.LaunchUriAsync(new Uri(url));
+        }
+    }
+
     private async void Delete_Click(object sender, RoutedEventArgs e)
     {
         if (_busy) return; _busy = true;
