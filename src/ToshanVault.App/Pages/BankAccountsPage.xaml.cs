@@ -172,11 +172,14 @@ public sealed partial class BankAccountsPage : Page
     // ---- Add credential (+) — owner picker first ---------------------------
     private async void LaunchWebsite_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button btn && btn.Tag is string url && !string.IsNullOrWhiteSpace(url))
+        if (sender is FrameworkElement el && el.Tag is string url && !string.IsNullOrWhiteSpace(url))
         {
-            if (!url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                 url = "https://" + url;
-            await Windows.System.Launcher.LaunchUriAsync(new Uri(url));
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                (uri.Scheme == "http" || uri.Scheme == "https"))
+                await Windows.System.Launcher.LaunchUriAsync(uri);
         }
     }
 

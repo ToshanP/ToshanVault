@@ -64,11 +64,14 @@
                                                Text="{Binding Subtitle}" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="1" Spacing="2" VerticalAlignment="Top" Margin="0,4,0,0">
-                                    <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                               TextTrimming="CharacterEllipsis"
-                                               Visibility="{Binding WebsiteVisibility}"
-                                               Text="{Binding Website}" />
+                                    <HyperlinkButton Click="LaunchWebsite_Click" Tag="{Binding Website}"
+                                                   Padding="0" Margin="0" MinHeight="0" MinWidth="0"
+                                                   Visibility="{Binding WebsiteVisibility}">
+                                        <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Text="{Binding Website}" />
+                                    </HyperlinkButton>
                                     <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
                                                TextTrimming="CharacterEllipsis"
                                                Visibility="{Binding RenewalVisibility}"
@@ -115,12 +118,7 @@
                                             Width="32" Height="32" Padding="0">
                                         <FontIcon Glyph="&#xE74D;" FontSize="14" />
                                     </Button>
-                                    <Button Click="LaunchWebsite_Click" Tag="{Binding Website}"
-                                            ToolTipService.ToolTip="Open website"
-                                            Width="32" Height="32" Padding="0"
-                                            Visibility="{Binding WebsiteVisibility}">
-                                        <FontIcon Glyph="&#xE774;" FontSize="14" />
-                                    </Button>
+
                                 </StackPanel>
                             </Grid>
                         </Border>

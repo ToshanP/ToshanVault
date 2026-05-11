@@ -59,12 +59,22 @@
                                                    TextTrimming="CharacterEllipsis"
                                                    Text="{Binding AccountName}" />
                                     </StackPanel>
-                                    <TextBlock Grid.Row="1" Style="{StaticResource CaptionTextBlockStyle}"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                               TextWrapping="WrapWholeWords">
-                                        <Run Text="{Binding AccountType}" /><LineBreak />
-                                        Acct <Run Text="{Binding MaskedAccountNumber}" />
-                                    </TextBlock>
+                                    <StackPanel Grid.Row="1" Spacing="2">
+                                        <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   TextWrapping="WrapWholeWords">
+                                            <Run Text="{Binding AccountType}" /><LineBreak />
+                                            Acct <Run Text="{Binding MaskedAccountNumber}" />
+                                        </TextBlock>
+                                        <HyperlinkButton Click="LaunchWebsite_Click" Tag="{Binding Website}"
+                                                         Padding="0" Margin="0" MinHeight="0" MinWidth="0"
+                                                         Visibility="{Binding WebsiteVisibility}">
+                                            <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Text="{Binding Website}" />
+                                        </HyperlinkButton>
+                                    </StackPanel>
                                     <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4"
                                                 VerticalAlignment="Center">
                                         <Button Click="Edit_Click" Tag="{Binding Id}"
@@ -101,12 +111,7 @@
                                                 Visibility="{Binding CanAddCredentialVisibility}">
                                             <FontIcon Glyph="&#xE710;" FontSize="14" />
                                         </Button>
-                                        <Button Click="LaunchWebsite_Click" Tag="{Binding Website}"
-                                                ToolTipService.ToolTip="Open website"
-                                                Width="32" Height="32" Padding="0"
-                                                Visibility="{Binding WebsiteVisibility}">
-                                            <FontIcon Glyph="&#xE774;" FontSize="14" />
-                                        </Button>
+
                                     </StackPanel>
                                 </Grid>
                             </Border>
