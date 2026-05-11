@@ -27,7 +27,6 @@
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <Button x:Name="RefreshPriceButton" Content="🔄 Refresh price" Click="RefreshPrice_Click" />
-                <Button x:Name="ImportButton"      Content="📥 Import xlsx"   Click="Import_Click" />
                 <Button x:Name="AddButton"         Content="+ Add"            Click="Add_Click"
                         Style="{StaticResource AccentButtonStyle}" />
                 <Button x:Name="EditButton"        Content="✏ Edit"           Click="Edit_Click"   IsEnabled="False" />

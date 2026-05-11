@@ -68,7 +68,8 @@
                                                    Padding="0" Margin="0" MinHeight="0" MinWidth="0"
                                                    Visibility="{Binding WebsiteVisibility}">
                                         <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
-                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   Foreground="{ThemeResource HyperlinkButtonForeground}"
+                                                   TextDecorations="Underline"
                                                    TextTrimming="CharacterEllipsis"
                                                    Text="{Binding Website}" />
                                     </HyperlinkButton>

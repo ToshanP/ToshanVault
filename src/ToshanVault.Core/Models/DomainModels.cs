@@ -95,6 +95,9 @@ public sealed class MintInvestmentPurchase
 
 public sealed class GoldItem
 {
+    /// <summary>Indian troy measurement: 1 tola = 11.6638038 grams.</summary>
+    public const double GramsPerTola = 11.6638038d;
+
     public long Id { get; set; }
     public string ItemName { get; set; } = string.Empty;
     public string Purity { get; set; } = string.Empty;
@@ -102,6 +105,8 @@ public sealed class GoldItem
     public double Tola { get; set; }
     public double GramsCalc { get; set; }
     public string? Notes { get; set; }
+
+    public static double TolaToGrams(double tola) => tola * GramsPerTola;
 }
 
 public sealed class GoldPriceCache

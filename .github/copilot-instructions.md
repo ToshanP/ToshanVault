@@ -17,8 +17,7 @@ ToshanVault.slnx
 ├── src/ToshanVault.App      # WinUI 3 app (XAML pages, dialogs, view models, services)
 ├── src/ToshanVault.Core     # Domain models (DomainModels.cs), security/encryption
 ├── src/ToshanVault.Data     # SQLite repositories, schema migrations
-├── src/ToshanVault.Importer # Data import utilities
-├── tests/ToshanVault.Tests  # Unit tests (xUnit, 127 tests)
+├── tests/ToshanVault.Tests  # Unit tests (xUnit)
 └── tools/                   # PowerShell scripts (publish, seed data, icons)
 ```
 

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
@@ -12,10 +11,8 @@ using Microsoft.UI.Xaml.Navigation;
 using Serilog;
 using ToshanVault.Core.Models;
 using ToshanVault.Data.Repositories;
-using ToshanVault.Importer;
 using ToshanVault_App.Hosting;
 using ToshanVault_App.Services;
-using Windows.Storage.Pickers;
 
 namespace ToshanVault_App.Pages;
 
@@ -224,56 +221,6 @@ public sealed partial class GoldOrnamentsPage : Page
         finally { _busy = false; }
     }
 
-    private async void Import_Click(object sender, RoutedEventArgs e)
-    {
-        if (_busy) return; _busy = true;
-        try
-        {
-            var defaultGuess = Path.Combine(@"C:\Toshan\Retirement Plan", "Toshan.xlsx");
-            string? chosenPath = null;
-
-            try
-            {
-                var picker = new FileOpenPicker();
-                WinRT.Interop.InitializeWithWindow.Initialize(picker, MainWindow.Hwnd);
-                picker.FileTypeFilter.Add(".xlsx");
-                // NOTE: SuggestedStartLocation intentionally omitted — Desktop
-                // can throw COMException 0x80004005 in unpackaged WinUI 3 apps
-                // when the folder is OneDrive-redirected.
-                var file = await picker.PickSingleFileAsync();
-                chosenPath = file?.Path;
-            }
-            catch (Exception pickerEx)
-            {
-                _log.Warning(pickerEx, "FileOpenPicker failed — falling back to default path");
-            }
-
-            if (string.IsNullOrEmpty(chosenPath))
-            {
-                if (!File.Exists(defaultGuess))
-                {
-                    ShowError($"File picker unavailable and default file not found: {defaultGuess}");
-                    return;
-                }
-                var ask = new ContentDialog
-                {
-                    XamlRoot = this.XamlRoot,
-                    Title = "Use Toshan.xlsx?",
-                    Content = $"Import gold ornaments from:\n{defaultGuess}",
-                    PrimaryButtonText = "Import",
-                    CloseButtonText = "Cancel",
-                    DefaultButton = ContentDialogButton.Primary,
-                };
-                if (await ask.ShowAsync() != ContentDialogResult.Primary) return;
-                chosenPath = defaultGuess;
-            }
-
-            await DoImportAsync(chosenPath);
-        }
-        catch (Exception ex) { _log.Error(ex, "GoldOrnamentsPage handler failed"); ShowError(FormatError(ex)); }
-        finally { _busy = false; }
-    }
-
     private static string FormatError(Exception ex)
     {
         var parts = new List<string>();
@@ -286,17 +233,6 @@ public sealed partial class GoldOrnamentsPage : Page
         }
         parts.Add($"(full stack in {Logging.LogFilePath})");
         return string.Join(" → ", parts);
-    }
-
-    private async Task DoImportAsync(string path)
-    {
-        _log.Information("Gold xlsx import starting from {Path}", path);
-        var importer = new GoldImporter(_repo);
-        var report = await importer.ImportAsync(path);
-        _log.Information("Gold xlsx import done. Read={Read} Inserted={Inserted} Skipped={Skipped}",
-            report.RowsRead, report.Inserted, report.Skipped);
-        await ReloadAsync();
-        ShowInfo($"Read {report.RowsRead} rows · inserted {report.Inserted} · skipped {report.Skipped} duplicates.");
     }
 
     private async void RefreshPrice_Click(object sender, RoutedEventArgs e)

@@ -69,7 +69,6 @@
   <ItemGroup>
     <ProjectReference Include="..\ToshanVault.Core\ToshanVault.Core.csproj" />
     <ProjectReference Include="..\ToshanVault.Data\ToshanVault.Data.csproj" />
-    <ProjectReference Include="..\ToshanVault.Importer\ToshanVault.Importer.csproj" />
   </ItemGroup>
 
   <!--

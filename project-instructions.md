@@ -29,11 +29,11 @@ a searchable, encrypted, portable home for:
 | D5 | Hello binding | DPAPI-wrapped KEK protected by KeyCredentialManager signature for Hello unlock |
 | D6 | Auto-lock | Default 10 min idle (configurable in Settings) |
 | D7 | Clipboard | Auto-clear 30 s after revealing a secret |
-| D8 | Importer | One-time wizard reading `Toshan.xlsx` via ClosedXML |
+| D8 | Importer | ~~Removed~~ — one-time import from `Toshan.xlsx` completed; `TolaToGrams` utility relocated to `GoldItem` in Core |
 | D9 | Gold price | Free no-auth APIs: `api.gold-api.com/price/XAU` for USD/oz + `api.frankfurter.app` for USD→AUD. Cached locally; manual override remains possible |
 | D10 | Target OS | Windows 11 only |
 | D11 | .NET | **.NET 10** (user request, supersedes earlier .NET 8 plan) |
-| D12 | Project layout | App / Core / Data / Importer / Tests |
+| D12 | Project layout | App / Core / Data / Tests |
 | D13 | DataGrid | `CommunityToolkit.WinUI.UI.Controls.DataGrid` v7.1.2 (v8 toolkit dropped DataGrid) |
 | D14 | Charts | `LiveChartsCore.SkiaSharpView.WinUI` 2.0 RC |
 | D15 | Publish output | `App\` is generated/local runtime output and is ignored by Git. Source publishes there via `tools\publish-single.ps1`; DB/settings are preserved |
@@ -47,18 +47,16 @@ ToshanVault.sln  (slnx format)
 ├── src/
 │   ├── ToshanVault.App         WinUI 3 — Views, ViewModels, navigation, DI host
 │   ├── ToshanVault.Core        Domain models, services, encryption, calc engines
-│   ├── ToshanVault.Data        SQLite repos (Dapper), migrations, encrypted-field helpers
-│   └── ToshanVault.Importer    ClosedXML readers + map-to-DB logic
+│   └── ToshanVault.Data        SQLite repos (Dapper), migrations, encrypted-field helpers
 └── tests/
-    └── ToshanVault.Tests       MSTest WinUI test app (crypto / importer / calc)
+    └── ToshanVault.Tests       xUnit tests (crypto, calc, domain logic)
 ```
 
 **Layering rules**
 - `Core` references nothing internal.
 - `Data` references `Core`.
-- `Importer` references `Core` + `Data`.
-- `App` references `Core` + `Data` + `Importer`.
-- `Tests` references `Core` + `Data` + `Importer`.
+- `App` references `Core` + `Data`.
+- `Tests` references `Core` + `Data`.
 
 ---
 
@@ -75,8 +73,7 @@ C:\Work\ToshanVault\
 ├── src\
 │   ├── ToshanVault.App\
 │   ├── ToshanVault.Core\
-│   ├── ToshanVault.Data\
-│   └── ToshanVault.Importer\
+│   └── ToshanVault.Data\
 ├── tests\
 │   └── ToshanVault.Tests\
 └── tools\
@@ -106,11 +103,10 @@ as the portable source of truth because session folders are machine-local and ep
 | Core | `CommunityToolkit.Mvvm` | 8.4.0 | Observable models |
 | Data | `Microsoft.Data.Sqlite` | 9.0.0 | SQLite ADO |
 | Data | `Dapper` | 2.1.66 | Lightweight ORM |
-| Importer | `ClosedXML` | 0.104.2 | Excel reader |
 | Tests | `FluentAssertions` | 6.12.2 | Test assertions |
 
 **Target framework:** `net10.0-windows10.0.26100.0` (App + Tests),
-`net10.0` (Core / Data / Importer libs).
+`net10.0` (Core / Data libs).
 **Min Windows version:** 10.0.17763 (template default; we only support 11 in practice).
 
 ---
@@ -501,7 +497,7 @@ WinUI 3 packaged apps cannot run on `AnyCPU` and we only ship Win 11 x64.
 - **Records vs classes** — immutable DTOs are `record`s; ViewModels are `partial class` with CommunityToolkit source generators.
 - **No magic strings** — DB column names live in `Schema` const class.
 - **Comments** — only where the *why* isn't obvious. No `//get name` style noise.
-- **Logging** — Serilog static facade configured in `ToshanVault_App.Hosting.Logging`. Inside the App layer use `Logging.ForContext<T>()` for context-scoped loggers, or `Serilog.Log.Information/Warning/Error/Fatal(...)` for top-level. **Library projects (Core/Data/Importer) do NOT reference Serilog** — they throw typed exceptions, the App catches at the UI boundary and logs there. Log file: `%LOCALAPPDATA%\ToshanVault\logs\toshanvault-YYYYMMDD.log` (rolling daily, 14-day retention, shared write).
+- **Logging** — Serilog static facade configured in `ToshanVault_App.Hosting.Logging`. Inside the App layer use `Logging.ForContext<T>()` for context-scoped loggers, or `Serilog.Log.Information/Warning/Error/Fatal(...)` for top-level. **Library projects (Core/Data) do NOT reference Serilog** — they throw typed exceptions, the App catches at the UI boundary and logs there. Log file: `%LOCALAPPDATA%\ToshanVault\logs\toshanvault-YYYYMMDD.log` (rolling daily, 14-day retention, shared write).
 
 ### 13.1 Multi-Owner Credential Pattern
 
@@ -620,7 +616,6 @@ C:\Work\ToshanVault\
 ├── src\ToshanVault.App\
 ├── src\ToshanVault.Core\
 ├── src\ToshanVault.Data\
-├── src\ToshanVault.Importer\
 ├── tests\ToshanVault.Tests\
 └── App\                                  ← optional runnable publish output + live DB/settings
 ```

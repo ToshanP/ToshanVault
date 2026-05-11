@@ -1,8 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using ToshanVault.Core.Models;
-using ToshanVault.Importer;
-
 namespace ToshanVault_App.Pages;
 
 /// <summary>
@@ -109,7 +107,7 @@ internal sealed class GoldOrnamentDialog : ContentDialog
 
     private void RefreshGrams()
     {
-        var grams = GoldImporter.TolaToGrams(_tola.Value);
+        var grams = GoldItem.TolaToGrams(_tola.Value);
         _grams.Text = $"≈ {grams:0.000} g";
     }
 
@@ -133,7 +131,7 @@ internal sealed class GoldOrnamentDialog : ContentDialog
         Result.Purity    = purity;
         Result.Qty       = _qty.Value;
         Result.Tola      = _tola.Value;
-        Result.GramsCalc = GoldImporter.TolaToGrams(_tola.Value);
+        Result.GramsCalc = GoldItem.TolaToGrams(_tola.Value);
         var notes = _notes.Text.Trim();
         Result.Notes = notes.Length == 0 ? null : notes;
     }

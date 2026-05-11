@@ -16,7 +16,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\ToshanVault.Core\ToshanVault.Core.csproj" />
     <ProjectReference Include="..\..\src\ToshanVault.Data\ToshanVault.Data.csproj" />
-    <ProjectReference Include="..\..\src\ToshanVault.Importer\ToshanVault.Importer.csproj" />
     <!-- ToshanVault.App is intentionally NOT referenced here. The App's
          module-init from Microsoft.WindowsAppSDK.Foundation calls
          Bootstrap.Initialize, which throws COMException 0x80040154 in any
