@@ -62,10 +62,7 @@
                                     <StackPanel Grid.Row="1" Spacing="2">
                                         <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                   TextWrapping="WrapWholeWords">
-                                            <Run Text="{Binding AccountType}" /><LineBreak />
-                                            Acct <Run Text="{Binding MaskedAccountNumber}" />
-                                        </TextBlock>
+                                                   Text="{Binding AccountType}" />
                                         <HyperlinkButton Click="LaunchWebsite_Click" Tag="{Binding Website}"
                                                          Padding="0" Margin="0" MinHeight="0" MinWidth="0"
                                                          Visibility="{Binding WebsiteVisibility}">
