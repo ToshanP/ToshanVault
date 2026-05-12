@@ -94,6 +94,7 @@ public sealed partial class MainShellPage : Page
         if (args.SelectedItem is not NavigationViewItem item) return;
         switch (item.Tag)
         {
+            case "search":    ContentFrame.Navigate(typeof(SearchPage)); break;
             case "dashboard": ContentFrame.Navigate(typeof(DashboardPage)); break;
             case "budget":    ContentFrame.Navigate(typeof(BudgetPage)); break;
             case "vault":     ContentFrame.Navigate(typeof(VaultPage)); break;

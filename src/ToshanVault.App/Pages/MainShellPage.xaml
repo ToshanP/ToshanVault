@@ -14,6 +14,9 @@
         SelectionChanged="NavView_SelectionChanged"
         Loaded="NavView_Loaded">
         <NavigationView.MenuItems>
+            <NavigationViewItem Content="Search" Tag="search">
+                <NavigationViewItem.Icon><FontIcon Glyph="&#xE721;" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
             <NavigationViewItem Content="Dashboard" Tag="dashboard" IsSelected="True">
                 <NavigationViewItem.Icon><FontIcon Glyph="&#xE80F;" /></NavigationViewItem.Icon>
             </NavigationViewItem>
