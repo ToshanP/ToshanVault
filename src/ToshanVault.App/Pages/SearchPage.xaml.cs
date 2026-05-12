@@ -55,34 +55,64 @@ public sealed partial class SearchPage : Page
         _insuranceAll.Clear();
         _notesAll.Clear();
 
-        // Vault entries
-        var vaultRows = await _entryRepo.GetByKindAsync(WebCredentialsService.EntryKind);
-        foreach (var r in vaultRows)
-        {
-            var subtitle = JoinParts(r.Owner, r.Category);
-            _vaultAll.Add(new SearchResultVm("vault", r.Name, subtitle, r.Owner, r.Category));
-        }
-
-        // Bank accounts (open only)
-        var banks = await _bankRepo.GetAllAsync();
-        foreach (var b in banks.Where(b => !b.IsClosed))
-            _bankAll.Add(new SearchResultVm("banks", b.AccountName, b.Bank, b.Bank, b.Website));
-
-        // Insurance policies
-        var insurance = await _insuranceRepo.GetAllAsync();
-        foreach (var i in insurance)
-        {
-            var subtitle = JoinParts(i.Owner, i.InsuranceType);
-            _insuranceAll.Add(new SearchResultVm("insurance", i.InsurerCompany, subtitle,
-                i.Owner, i.PolicyNumber, i.InsuranceType, i.Website));
-        }
-
-        // General notes
-        var notes = await _entryRepo.GetByKindAsync(GeneralNotesService.EntryKind);
-        foreach (var r in notes)
-            _notesAll.Add(new SearchResultVm("notes", r.Name, r.Owner ?? "", r.Owner));
+        // Load each section independently so one failure doesn't block others
+        await LoadVaultAsync();
+        await LoadBankingAsync();
+        await LoadInsuranceAsync();
+        await LoadNotesAsync();
 
         ApplyFilter();
+    }
+
+    private async Task LoadVaultAsync()
+    {
+        try
+        {
+            var rows = await _entryRepo.GetByKindAsync(WebCredentialsService.EntryKind);
+            foreach (var r in rows)
+            {
+                var subtitle = JoinParts(r.Owner, r.Category);
+                _vaultAll.Add(new SearchResultVm("vault", r.Name, subtitle, r.Owner, r.Category));
+            }
+        }
+        catch (Exception ex) { ShowError($"Vault: {ex.Message}"); }
+    }
+
+    private async Task LoadBankingAsync()
+    {
+        try
+        {
+            var banks = await _bankRepo.GetAllAsync();
+            foreach (var b in banks.Where(b => !b.IsClosed))
+                _bankAll.Add(new SearchResultVm("banks", b.AccountName, b.Bank, b.Bank, b.Website));
+        }
+        catch (Exception ex) { ShowError($"Banking: {ex.Message}"); }
+    }
+
+    private async Task LoadInsuranceAsync()
+    {
+        try
+        {
+            var insurance = await _insuranceRepo.GetAllAsync();
+            foreach (var i in insurance)
+            {
+                var subtitle = JoinParts(i.Owner, i.InsuranceType);
+                _insuranceAll.Add(new SearchResultVm("insurance", i.InsurerCompany, subtitle,
+                    i.Owner, i.PolicyNumber, i.InsuranceType, i.Website));
+            }
+        }
+        catch (Exception ex) { ShowError($"Insurance: {ex.Message}"); }
+    }
+
+    private async Task LoadNotesAsync()
+    {
+        try
+        {
+            var notes = await _entryRepo.GetByKindAsync(GeneralNotesService.EntryKind);
+            foreach (var r in notes)
+                _notesAll.Add(new SearchResultVm("notes", r.Name, r.Owner ?? "", r.Owner));
+        }
+        catch (Exception ex) { ShowError($"Notes: {ex.Message}"); }
     }
 
     private void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
