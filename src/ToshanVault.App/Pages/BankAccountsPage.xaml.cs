@@ -38,7 +38,16 @@ public sealed partial class BankAccountsPage : Page
 
     protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
-        try { await ReloadAsync(); }
+        try
+        {
+            await ReloadAsync();
+            var pending = _nav.PendingSearchFilter;
+            if (!string.IsNullOrEmpty(pending))
+            {
+                _nav.PendingSearchFilter = null;
+                SearchBox.Text = pending;
+            }
+        }
         catch (Exception ex) { ShowError(ex.Message); }
     }
 

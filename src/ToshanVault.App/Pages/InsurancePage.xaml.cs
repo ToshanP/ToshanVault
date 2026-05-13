@@ -41,6 +41,12 @@ public sealed partial class InsurancePage : Page
         {
             await _credService.MigrateNotesToColumnAsync();
             await ReloadAsync();
+            var pending = _nav.PendingSearchFilter;
+            if (!string.IsNullOrEmpty(pending))
+            {
+                _nav.PendingSearchFilter = null;
+                SearchBox.Text = pending;
+            }
         }
         catch (VaultLockedException) { _nav.NavigateToLogin(); }
         catch (Exception ex) { ShowError(ex.Message); }

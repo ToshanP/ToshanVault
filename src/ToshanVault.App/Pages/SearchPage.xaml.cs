@@ -181,7 +181,7 @@ public sealed partial class SearchPage : Page
     private void Result_Click(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement el && el.DataContext is SearchResultVm vm)
-            _nav.NavigateInShell(vm.SectionTag);
+            _nav.NavigateInShell(vm.SectionTag, _filter);
     }
 
     private void ShowError(string message)

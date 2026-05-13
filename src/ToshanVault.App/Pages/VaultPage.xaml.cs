@@ -55,6 +55,12 @@ public sealed partial class VaultPage : Page
         {
             _collapsed = _uiState.LoadCollapsedGroups();
             await ReloadAsync();
+            var pending = _nav.PendingSearchFilter;
+            if (!string.IsNullOrEmpty(pending))
+            {
+                _nav.PendingSearchFilter = null;
+                SearchBox.Text = pending; // triggers TextChanged → ApplyFilter
+            }
         }
         catch (VaultLockedException) { _nav.NavigateToLogin(); }
         catch (Exception ex) { ShowError(ex.Message); }

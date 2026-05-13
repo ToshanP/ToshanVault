@@ -22,6 +22,17 @@ public sealed class NavigationService
 
     public void NavigateInShell(string tag) => _shellNavigator?.Invoke(tag);
 
+    /// <summary>Navigate to a shell page and pass an initial search filter so
+    /// the target page pre-fills its search box.</summary>
+    public void NavigateInShell(string tag, string? searchFilter)
+    {
+        PendingSearchFilter = searchFilter;
+        NavigateInShell(tag);
+    }
+
+    /// <summary>One-shot search filter consumed by the target page on load.</summary>
+    public string? PendingSearchFilter { get; set; }
+
     public void NavigateToLogin()
     {
         if (_rootFrame is null) return;

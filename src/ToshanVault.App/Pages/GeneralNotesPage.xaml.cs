@@ -35,7 +35,16 @@ public sealed partial class GeneralNotesPage : Page
 
     protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
-        try { await ReloadAsync(); }
+        try
+        {
+            await ReloadAsync();
+            var pending = _nav.PendingSearchFilter;
+            if (!string.IsNullOrEmpty(pending))
+            {
+                _nav.PendingSearchFilter = null;
+                SearchBox.Text = pending;
+            }
+        }
         catch (VaultLockedException) { _nav.NavigateToLogin(); }
         catch (Exception ex) { ShowError(ex.Message); }
     }
