@@ -54,6 +54,26 @@ public sealed partial class BudgetPage : Page
         IncomeGrid.ItemsSource   = _income;
         FixedGrid.ItemsSource    = _fixedEx;
         VariableGrid.ItemsSource = _variable;
+
+        ApplyRightAlignToNumericColumns(IncomeGrid);
+        ApplyRightAlignToNumericColumns(FixedGrid);
+        ApplyRightAlignToNumericColumns(VariableGrid);
+    }
+
+    private static void ApplyRightAlignToNumericColumns(DataGrid grid)
+    {
+        var style = new Style(typeof(TextBlock));
+        style.Setters.Add(new Setter(TextBlock.TextAlignmentProperty, TextAlignment.Right));
+        style.Setters.Add(new Setter(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Stretch));
+
+        foreach (var col in grid.Columns)
+        {
+            if (col is DataGridTextColumn tc && col.Tag is string tag
+                && tag is "Amount" or "Weekly" or "Annual")
+            {
+                tc.ElementStyle = style;
+            }
+        }
     }
 
     protected override async void OnNavigatedTo(NavigationEventArgs e)
