@@ -64,8 +64,8 @@
                             <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Total" />
-                        <TextBlock Grid.Column="3" x:Name="IncomeWeeklyTotal" Style="{StaticResource BodyStrongTextBlockStyle}" TextAlignment="Right" />
-                        <TextBlock Grid.Column="4" x:Name="IncomeAnnualTotal" Style="{StaticResource BodyStrongTextBlockStyle}" TextAlignment="Right" />
+                        <TextBlock Grid.Column="3" x:Name="IncomeWeeklyTotal" Style="{StaticResource BodyStrongTextBlockStyle}" TextAlignment="Right" HorizontalAlignment="Stretch" />
+                        <TextBlock Grid.Column="4" x:Name="IncomeAnnualTotal" Style="{StaticResource BodyStrongTextBlockStyle}" TextAlignment="Right" HorizontalAlignment="Stretch" />
                     </Grid>
                 </StackPanel>
             </Border>
@@ -110,8 +110,8 @@
                             <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Total" />
-                        <TextBlock Grid.Column="3" x:Name="FixedWeeklyTotal" Style="{StaticResource BodyStrongTextBlockStyle}" TextAlignment="Right" />
-                        <TextBlock Grid.Column="4" x:Name="FixedAnnualTotal" Style="{StaticResource BodyStrongTextBlockStyle}" TextAlignment="Right" />
+                        <TextBlock Grid.Column="3" x:Name="FixedWeeklyTotal" Style="{StaticResource BodyStrongTextBlockStyle}" TextAlignment="Right" HorizontalAlignment="Stretch" />
+                        <TextBlock Grid.Column="4" x:Name="FixedAnnualTotal" Style="{StaticResource BodyStrongTextBlockStyle}" TextAlignment="Right" HorizontalAlignment="Stretch" />
                     </Grid>
                 </StackPanel>
             </Border>
@@ -156,8 +156,8 @@
                             <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Total" />
-                        <TextBlock Grid.Column="3" x:Name="VariableWeeklyTotal" Style="{StaticResource BodyStrongTextBlockStyle}" TextAlignment="Right" />
-                        <TextBlock Grid.Column="4" x:Name="VariableAnnualTotal" Style="{StaticResource BodyStrongTextBlockStyle}" TextAlignment="Right" />
+                        <TextBlock Grid.Column="3" x:Name="VariableWeeklyTotal" Style="{StaticResource BodyStrongTextBlockStyle}" TextAlignment="Right" HorizontalAlignment="Stretch" />
+                        <TextBlock Grid.Column="4" x:Name="VariableAnnualTotal" Style="{StaticResource BodyStrongTextBlockStyle}" TextAlignment="Right" HorizontalAlignment="Stretch" />
                     </Grid>
                 </StackPanel>
             </Border>
@@ -173,8 +173,8 @@
                         <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Surplus (Income − Expenses)" />
-                    <TextBlock Grid.Column="3" x:Name="SurplusWeekly" Style="{StaticResource SubtitleTextBlockStyle}" TextAlignment="Right" />
-                    <TextBlock Grid.Column="4" x:Name="SurplusAnnual" Style="{StaticResource SubtitleTextBlockStyle}" TextAlignment="Right" />
+                    <TextBlock Grid.Column="3" x:Name="SurplusWeekly" Style="{StaticResource SubtitleTextBlockStyle}" TextAlignment="Right" HorizontalAlignment="Stretch" />
+                    <TextBlock Grid.Column="4" x:Name="SurplusAnnual" Style="{StaticResource SubtitleTextBlockStyle}" TextAlignment="Right" HorizontalAlignment="Stretch" />
                 </Grid>
             </Border>
         </Grid>
