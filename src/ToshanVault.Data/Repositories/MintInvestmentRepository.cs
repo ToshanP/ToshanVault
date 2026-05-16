@@ -90,4 +90,29 @@ public sealed class MintInvestmentRepository
             new { dueDate },
             cancellationToken: ct)).ConfigureAwait(false);
     }
+
+    // ---- Yearly Balance ----
+
+    public async Task<IReadOnlyList<MintYearlyBalance>> GetYearlyBalancesAsync(CancellationToken ct = default)
+    {
+        await using var conn = _factory.Open();
+        var rows = await conn.QueryAsync<MintYearlyBalance>(new CommandDefinition(
+            "SELECT year_end, actual_oz, actual_invested FROM mint_yearly_balance ORDER BY year_end;",
+            cancellationToken: ct)).ConfigureAwait(false);
+        return rows.AsList();
+    }
+
+    public async Task UpsertYearlyBalanceAsync(MintYearlyBalance balance, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(balance);
+        await using var conn = _factory.Open();
+        await conn.ExecuteAsync(new CommandDefinition(
+            @"INSERT INTO mint_yearly_balance(year_end, actual_oz, actual_invested)
+              VALUES (@YearEnd, @ActualOz, @ActualInvested)
+              ON CONFLICT(year_end) DO UPDATE SET
+                  actual_oz = excluded.actual_oz,
+                  actual_invested = excluded.actual_invested;",
+            balance,
+            cancellationToken: ct)).ConfigureAwait(false);
+    }
 }

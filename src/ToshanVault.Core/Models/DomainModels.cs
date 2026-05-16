@@ -93,6 +93,13 @@ public sealed class MintInvestmentPurchase
     public string? Notes { get; set; }
 }
 
+public sealed class MintYearlyBalance
+{
+    public DateOnly YearEnd { get; set; }
+    public double ActualOz { get; set; }
+    public double ActualInvested { get; set; }
+}
+
 public sealed class GoldItem
 {
     /// <summary>Indian troy measurement: 1 tola = 11.6638038 grams.</summary>

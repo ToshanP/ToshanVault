@@ -1,7 +1,11 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
+using CommunityToolkit.WinUI.UI.Controls;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using ToshanVault.Core.Models;
@@ -17,10 +21,12 @@ public sealed partial class MintInvestmentPage : Page
     private readonly MintInvestmentRepository _repo = AppHost.GetService<MintInvestmentRepository>();
     private readonly GoldPriceService _price = AppHost.GetService<GoldPriceService>();
     private IReadOnlyList<MintInvestmentPurchase> _purchases = Array.Empty<MintInvestmentPurchase>();
+    private readonly ObservableCollection<YearlyBalanceVm> _yearlyRows = new();
 
     public MintInvestmentPage()
     {
         InitializeComponent();
+        YearlyBalanceGrid.ItemsSource = _yearlyRows;
         Loaded += async (_, _) => await LoadAsync();
     }
 
@@ -30,6 +36,7 @@ public sealed partial class MintInvestmentPage : Page
         _purchases = await _repo.GetPurchasesAsync();
         Populate(plan);
         Render(plan);
+        await LoadYearlyBalanceAsync(plan);
     }
 
     private void Populate(MintInvestmentPlan plan)
@@ -83,6 +90,56 @@ public sealed partial class MintInvestmentPage : Page
             ScheduleList.Items.Add(BuildScheduleRow(row));
         }
     }
+
+    // ---- Yearly Balance Tab ------------------------------------------------
+
+    private async Task LoadYearlyBalanceAsync(MintInvestmentPlan plan)
+    {
+        var yearEnds = GenerateFinancialYearEnds(plan.AccountStartDate, 10);
+        var projections = MintInvestmentCalculator.ProjectYearValues(plan, _purchases, yearEnds);
+        var actuals = await _repo.GetYearlyBalancesAsync();
+        var actualsByYear = actuals.ToDictionary(a => a.YearEnd);
+
+        _yearlyRows.Clear();
+        foreach (var proj in projections)
+        {
+            actualsByYear.TryGetValue(proj.YearEnd, out var actual);
+            _yearlyRows.Add(new YearlyBalanceVm(proj, actual, plan.PricePerOunceAud));
+        }
+    }
+
+    private static IReadOnlyList<DateOnly> GenerateFinancialYearEnds(DateOnly startDate, int count)
+    {
+        // Australian FY ends 30 June. Find the first 30 June after the start date.
+        var firstYearEnd = new DateOnly(startDate.Year, 6, 30);
+        if (firstYearEnd < startDate) firstYearEnd = firstYearEnd.AddYears(1);
+
+        var ends = new List<DateOnly>(count);
+        for (var i = 0; i < count; i++)
+            ends.Add(firstYearEnd.AddYears(i));
+        return ends;
+    }
+
+    private async void YearlyBalanceGrid_CellEditEnded(object sender, DataGridCellEditEndedEventArgs e)
+    {
+        if (e.Row.DataContext is not YearlyBalanceVm vm) return;
+        try
+        {
+            await _repo.UpsertYearlyBalanceAsync(new MintYearlyBalance
+            {
+                YearEnd = vm.YearEnd,
+                ActualOz = vm.ActualOz,
+                ActualInvested = vm.ActualInvested,
+            });
+            vm.RefreshComputed();
+        }
+        catch (Exception ex)
+        {
+            ShowInfo($"Save failed: {ex.Message}", error: true);
+        }
+    }
+
+    // ---- Schedule Tab helpers -----------------------------------------------
 
     private FrameworkElement BuildScheduleRow(MintInvestmentCalculator.ScheduleRow row)
     {
@@ -139,6 +196,8 @@ public sealed partial class MintInvestmentPage : Page
             ? $"{status} · consolidation checkpoint"
             : status;
     }
+
+    // ---- Save / Buttons ----------------------------------------------------
 
     private async void Save_Click(object sender, RoutedEventArgs e)
     {
@@ -222,4 +281,61 @@ public sealed partial class MintInvestmentPage : Page
         InfoBar.Message = message;
         InfoBar.IsOpen = true;
     }
+}
+
+// ---- ViewModel for Yearly Balance grid row ---------------------------------
+
+internal sealed class YearlyBalanceVm : INotifyPropertyChanged
+{
+    private static readonly CultureInfo Aud = CultureInfo.GetCultureInfo("en-AU");
+    private readonly double _pricePerOz;
+    private double _actualOz;
+    private double _actualInvested;
+
+    public YearlyBalanceVm(
+        MintInvestmentCalculator.YearProjection projection,
+        MintYearlyBalance? actual,
+        double pricePerOz)
+    {
+        YearEnd = projection.YearEnd;
+        YearLabel = $"FY {projection.YearEnd.Year - 1}-{projection.YearEnd.Year:D2}".Replace($"-{projection.YearEnd.Year:D4}", $"-{projection.YearEnd.Year % 100:D2}");
+        TargetOz = projection.PhysicalOunces;
+        TargetValue = projection.PhysicalValue;
+        TargetInvested = projection.TotalContributed;
+        _pricePerOz = pricePerOz;
+        _actualOz = actual?.ActualOz ?? 0;
+        _actualInvested = actual?.ActualInvested ?? 0;
+    }
+
+    public DateOnly YearEnd { get; }
+    public string YearLabel { get; }
+    public double TargetOz { get; }
+    public double TargetValue { get; }
+    public double TargetInvested { get; }
+
+    public string TargetOzDisplay => $"{TargetOz:N1}";
+    public string TargetValueDisplay => TargetValue.ToString("C0", Aud);
+    public string TargetInvestedDisplay => TargetInvested.ToString("C0", Aud);
+
+    public double ActualOz
+    {
+        get => _actualOz;
+        set { _actualOz = value; OnPropertyChanged(nameof(ActualOz)); RefreshComputed(); }
+    }
+
+    public double ActualInvested
+    {
+        get => _actualInvested;
+        set { _actualInvested = value; OnPropertyChanged(nameof(ActualInvested)); }
+    }
+
+    public string ActualValueDisplay => (_actualOz * _pricePerOz).ToString("C0", Aud);
+
+    public void RefreshComputed()
+    {
+        OnPropertyChanged(nameof(ActualValueDisplay));
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
