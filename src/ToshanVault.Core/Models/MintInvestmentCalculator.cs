@@ -248,6 +248,68 @@ public static class MintInvestmentCalculator
     private static double Cost(MintInvestmentPurchase purchase)
         => Math.Max(0, purchase.Ounces) * Math.Max(0, purchase.PricePerOunceAud);
 
+    public sealed record FortnightSnapshot(
+        DateOnly Date,
+        double Contribution,
+        double CashBalance,
+        double PurchaseOz,
+        double RunningOz,
+        double RunningValue);
+
+    /// <summary>
+    /// Generates per-fortnight snapshots from plan start through the target FY,
+    /// using stored actuals where available and projections otherwise.
+    /// Returns only the fortnights within [fyStart+1day .. fyEnd].
+    /// </summary>
+    public static IReadOnlyList<FortnightSnapshot> GenerateFortnightDetails(
+        MintInvestmentPlan plan,
+        IReadOnlyDictionary<DateOnly, MintFortnightActual> allActuals,
+        DateOnly fyStart,
+        DateOnly fyEnd)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(allActuals);
+
+        var price = Math.Max(0, plan.PricePerOunceAud);
+        var defaultContrib = Math.Max(0, plan.FortnightlyContributionAud);
+        var unitOz = Math.Max(0, plan.WorkingUnitOunces);
+        var unitCost = unitOz * price;
+
+        var cash = 0.0;
+        var oz = 0.0;
+        var date = plan.AccountStartDate;
+        var results = new List<FortnightSnapshot>();
+
+        while (date <= fyEnd)
+        {
+            double contrib, purchaseOz;
+
+            if (allActuals.TryGetValue(date, out var actual))
+            {
+                contrib = actual.ActualContribution;
+                purchaseOz = actual.ActualOz;
+            }
+            else
+            {
+                contrib = defaultContrib;
+                purchaseOz = (unitCost > 0 && cash + contrib + 0.0001 >= unitCost) ? unitOz : 0;
+            }
+
+            cash += contrib;
+            cash -= purchaseOz * price;
+            oz += purchaseOz;
+
+            if (date > fyStart)
+            {
+                results.Add(new FortnightSnapshot(date, contrib, cash, purchaseOz, oz, oz * price));
+            }
+
+            date = date.AddDays(14);
+        }
+
+        return results;
+    }
+
     private static bool IsConsolidationCheckpoint(double ounces, double target)
     {
         if (target <= 0 || ounces < target) return false;

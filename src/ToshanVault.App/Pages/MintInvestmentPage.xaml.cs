@@ -22,6 +22,10 @@ public sealed partial class MintInvestmentPage : Page
     private readonly GoldPriceService _price = AppHost.GetService<GoldPriceService>();
     private IReadOnlyList<MintInvestmentPurchase> _purchases = Array.Empty<MintInvestmentPurchase>();
     private readonly ObservableCollection<YearlyBalanceVm> _yearlyRows = new();
+    private MintInvestmentPlan _plan = new();
+    private Dictionary<DateOnly, MintFortnightActual> _fortnightActuals = new();
+    private readonly List<FortnightVm> _expandedFortnightVms = new();
+    private YearlyBalanceVm? _expandedYear;
 
     public MintInvestmentPage()
     {
@@ -32,11 +36,11 @@ public sealed partial class MintInvestmentPage : Page
 
     private async Task LoadAsync()
     {
-        var plan = await _repo.GetPlanAsync();
+        _plan = await _repo.GetPlanAsync();
         _purchases = await _repo.GetPurchasesAsync();
-        Populate(plan);
-        Render(plan);
-        await LoadYearlyBalanceAsync(plan);
+        Populate(_plan);
+        Render(_plan);
+        await LoadYearlyBalanceAsync(_plan);
     }
 
     private void Populate(MintInvestmentPlan plan)
@@ -100,6 +104,29 @@ public sealed partial class MintInvestmentPage : Page
         var actuals = await _repo.GetYearlyBalancesAsync();
         var actualsByYear = actuals.ToDictionary(a => a.YearEnd);
 
+        // Seed targets into DB for years that don't have records yet
+        var toSeed = new List<MintYearlyBalance>();
+        foreach (var proj in projections)
+        {
+            if (!actualsByYear.ContainsKey(proj.YearEnd))
+            {
+                var seed = new MintYearlyBalance
+                {
+                    YearEnd = proj.YearEnd,
+                    ActualOz = proj.PhysicalOunces,
+                    ActualInvested = proj.TotalContributed,
+                };
+                toSeed.Add(seed);
+                actualsByYear[proj.YearEnd] = seed;
+            }
+        }
+        if (toSeed.Count > 0)
+            await _repo.BulkUpsertYearlyBalancesAsync(toSeed);
+
+        // Load fortnight actuals
+        var fnActuals = await _repo.GetFortnightActualsAsync();
+        _fortnightActuals = fnActuals.ToDictionary(a => a.FortnightDate);
+
         _yearlyRows.Clear();
         foreach (var proj in projections)
         {
@@ -127,7 +154,9 @@ public sealed partial class MintInvestmentPage : Page
 
     private void YearlyBalanceGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        EditYearlyBtn.IsEnabled = YearlyBalanceGrid.SelectedItem is YearlyBalanceVm;
+        var hasSelection = YearlyBalanceGrid.SelectedItem is YearlyBalanceVm;
+        EditYearlyBtn.IsEnabled = hasSelection;
+        ExpandYearlyBtn.IsEnabled = hasSelection;
     }
 
     private async void EditYearly_Click(object sender, RoutedEventArgs e)
@@ -158,6 +187,224 @@ public sealed partial class MintInvestmentPage : Page
         {
             ShowInfo($"Save failed: {ex.Message}", error: true);
         }
+    }
+
+    // ---- Fortnight drill-down ------------------------------------------------
+
+    private void ExpandYearly_Click(object sender, RoutedEventArgs e)
+    {
+        if (YearlyBalanceGrid.SelectedItem is not YearlyBalanceVm vm) return;
+
+        // Toggle collapse if same year
+        if (_expandedYear == vm && FortnightDetailBorder.Visibility == Visibility.Visible)
+        {
+            FortnightDetailBorder.Visibility = Visibility.Collapsed;
+            _expandedYear = null;
+            ExpandYearlyBtn.Content = "▶ Expand";
+            return;
+        }
+
+        _expandedYear = vm;
+        ExpandYearlyBtn.Content = "▼ Collapse";
+        FortnightDetailTitle.Text = $"Fortnightly Detail — {vm.YearLabel}";
+
+        var fyStart = vm.YearEnd.AddYears(-1); // 30 June previous year
+        var snapshots = MintInvestmentCalculator.GenerateFortnightDetails(
+            _plan, _fortnightActuals, fyStart, vm.YearEnd);
+
+        _expandedFortnightVms.Clear();
+        FortnightList.Items.Clear();
+        foreach (var snap in snapshots)
+        {
+            var fnVm = new FortnightVm(snap);
+            _expandedFortnightVms.Add(fnVm);
+            FortnightList.Items.Add(BuildFortnightRow(fnVm));
+        }
+
+        EditFortnightBtn.IsEnabled = false;
+        FortnightDetailBorder.Visibility = Visibility.Visible;
+    }
+
+    private void CloseFortnightDetail_Click(object sender, RoutedEventArgs e)
+    {
+        FortnightDetailBorder.Visibility = Visibility.Collapsed;
+        _expandedYear = null;
+        ExpandYearlyBtn.Content = "▶ Expand";
+    }
+
+    private void FortnightList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        EditFortnightBtn.IsEnabled = FortnightList.SelectedIndex >= 0;
+    }
+
+    private async void FortnightList_DoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        if (FortnightList.SelectedIndex >= 0)
+            await EditFortnightAsync(FortnightList.SelectedIndex);
+    }
+
+    private async void EditFortnight_Click(object sender, RoutedEventArgs e)
+    {
+        if (FortnightList.SelectedIndex >= 0)
+            await EditFortnightAsync(FortnightList.SelectedIndex);
+    }
+
+    private async Task EditFortnightAsync(int index)
+    {
+        if (index < 0 || index >= _expandedFortnightVms.Count || _expandedYear == null) return;
+
+        var vm = _expandedFortnightVms[index];
+        try
+        {
+            var dlg = new MintFortnightEditDialog(this.XamlRoot, vm);
+            if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+
+            // Persist edited fortnight
+            await _repo.UpsertFortnightActualAsync(new MintFortnightActual
+            {
+                FortnightDate = vm.Date,
+                ActualOz = dlg.ResultPurchaseOz,
+                ActualContribution = dlg.ResultContribution,
+            });
+
+            // Update local cache
+            _fortnightActuals[vm.Date] = new MintFortnightActual
+            {
+                FortnightDate = vm.Date,
+                ActualOz = dlg.ResultPurchaseOz,
+                ActualContribution = dlg.ResultContribution,
+            };
+
+            // Forward propagation: recalculate from edited index onward
+            var price = _plan.PricePerOunceAud;
+            double prevCash = index > 0 ? _expandedFortnightVms[index - 1].CashBalance : 0;
+            double prevOz = index > 0 ? _expandedFortnightVms[index - 1].RunningOz : 0;
+
+            // First fortnight needs cash from before the FY — get from snapshot generation
+            if (index == 0)
+            {
+                // Cash at start of FY = cash up to fyStart from the generator.
+                // Simplification: use the snapshot values minus this row's contribution.
+                prevCash = 0;
+                prevOz = 0;
+                // Re-run full snapshot to get correct opening balances
+                var fyStart = _expandedYear.YearEnd.AddYears(-1);
+                var freshSnaps = MintInvestmentCalculator.GenerateFortnightDetails(
+                    _plan, _fortnightActuals, fyStart, _expandedYear.YearEnd);
+
+                // Refresh all VMs from fresh snapshots
+                for (var i = 0; i < _expandedFortnightVms.Count && i < freshSnaps.Count; i++)
+                {
+                    var s = freshSnaps[i];
+                    var fv = _expandedFortnightVms[i];
+                    fv.Contribution = s.Contribution;
+                    fv.PurchaseOz = s.PurchaseOz;
+                    fv.CashBalance = s.CashBalance;
+                    fv.RunningOz = s.RunningOz;
+                    fv.RunningValue = s.RunningValue;
+                }
+            }
+            else
+            {
+                // Propagate from edited index onward
+                for (var i = index; i < _expandedFortnightVms.Count; i++)
+                {
+                    var fv = _expandedFortnightVms[i];
+                    double contrib, purchOz;
+
+                    if (i == index)
+                    {
+                        contrib = dlg.ResultContribution;
+                        purchOz = dlg.ResultPurchaseOz;
+                    }
+                    else if (_fortnightActuals.TryGetValue(fv.Date, out var act))
+                    {
+                        contrib = act.ActualContribution;
+                        purchOz = act.ActualOz;
+                    }
+                    else
+                    {
+                        contrib = _plan.FortnightlyContributionAud;
+                        var unitOz = _plan.WorkingUnitOunces;
+                        var unitCost = unitOz * price;
+                        purchOz = (unitCost > 0 && prevCash + contrib + 0.0001 >= unitCost) ? unitOz : 0;
+                    }
+
+                    var cash = prevCash + contrib - (purchOz * price);
+                    var oz = prevOz + purchOz;
+
+                    fv.Contribution = contrib;
+                    fv.PurchaseOz = purchOz;
+                    fv.CashBalance = cash;
+                    fv.RunningOz = oz;
+                    fv.RunningValue = oz * price;
+
+                    prevCash = cash;
+                    prevOz = oz;
+                }
+            }
+
+            // Rebuild ListView items
+            FortnightList.Items.Clear();
+            foreach (var fv in _expandedFortnightVms)
+                FortnightList.Items.Add(BuildFortnightRow(fv));
+
+            // Update parent annual row
+            if (_expandedFortnightVms.Count > 0)
+            {
+                var lastFn = _expandedFortnightVms[^1];
+                _expandedYear.ActualOz = lastFn.RunningOz;
+                _expandedYear.ActualInvested = _expandedFortnightVms.Sum(f => f.PurchaseOz * price);
+                _expandedYear.RefreshComputed();
+
+                await _repo.UpsertYearlyBalanceAsync(new MintYearlyBalance
+                {
+                    YearEnd = _expandedYear.YearEnd,
+                    ActualOz = _expandedYear.ActualOz,
+                    ActualInvested = _expandedYear.ActualInvested,
+                });
+            }
+
+            ShowInfo($"Saved fortnight {vm.DateDisplay} and propagated forward.");
+        }
+        catch (Exception ex)
+        {
+            ShowInfo($"Save failed: {ex.Message}", error: true);
+        }
+    }
+
+    private static FrameworkElement BuildFortnightRow(FortnightVm vm)
+    {
+        var grid = new Grid { Padding = new Thickness(4, 2, 4, 2) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var date = new TextBlock { Text = vm.DateDisplay };
+        var contrib = new TextBlock { Text = vm.ContributionDisplay, TextAlignment = TextAlignment.Right, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var cash = new TextBlock { Text = vm.CashBalanceDisplay, TextAlignment = TextAlignment.Right, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var purch = new TextBlock { Text = vm.PurchaseOzDisplay, TextAlignment = TextAlignment.Right, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var runOz = new TextBlock { Text = vm.RunningOzDisplay, TextAlignment = TextAlignment.Right, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var runVal = new TextBlock { Text = vm.RunningValueDisplay, TextAlignment = TextAlignment.Right, HorizontalAlignment = HorizontalAlignment.Stretch };
+
+        Grid.SetColumn(date, 0);
+        Grid.SetColumn(contrib, 1);
+        Grid.SetColumn(cash, 2);
+        Grid.SetColumn(purch, 3);
+        Grid.SetColumn(runOz, 4);
+        Grid.SetColumn(runVal, 5);
+
+        grid.Children.Add(date);
+        grid.Children.Add(contrib);
+        grid.Children.Add(cash);
+        grid.Children.Add(purch);
+        grid.Children.Add(runOz);
+        grid.Children.Add(runVal);
+
+        return grid;
     }
 
     // ---- Schedule Tab helpers -----------------------------------------------
@@ -363,4 +610,35 @@ internal sealed class YearlyBalanceVm : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
+
+// ---- ViewModel for Fortnightly drill-down row --------------------------------
+
+internal sealed class FortnightVm
+{
+    private static readonly CultureInfo Aud = CultureInfo.GetCultureInfo("en-AU");
+
+    public FortnightVm(MintInvestmentCalculator.FortnightSnapshot snap)
+    {
+        Date = snap.Date;
+        Contribution = snap.Contribution;
+        CashBalance = snap.CashBalance;
+        PurchaseOz = snap.PurchaseOz;
+        RunningOz = snap.RunningOz;
+        RunningValue = snap.RunningValue;
+    }
+
+    public DateOnly Date { get; }
+    public double Contribution { get; set; }
+    public double CashBalance { get; set; }
+    public double PurchaseOz { get; set; }
+    public double RunningOz { get; set; }
+    public double RunningValue { get; set; }
+
+    public string DateDisplay => Date.ToString("dd MMM yyyy");
+    public string ContributionDisplay => Contribution.ToString("C0", Aud);
+    public string CashBalanceDisplay => CashBalance.ToString("C0", Aud);
+    public string PurchaseOzDisplay => PurchaseOz > 0 ? $"{PurchaseOz:N1}" : "—";
+    public string RunningOzDisplay => $"{RunningOz:N1}";
+    public string RunningValueDisplay => RunningValue.ToString("C0", Aud);
 }

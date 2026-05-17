@@ -115,4 +115,44 @@ public sealed class MintInvestmentRepository
             balance,
             cancellationToken: ct)).ConfigureAwait(false);
     }
+
+    public async Task BulkUpsertYearlyBalancesAsync(IEnumerable<MintYearlyBalance> balances, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(balances);
+        await using var conn = _factory.Open();
+        foreach (var b in balances)
+        {
+            await conn.ExecuteAsync(new CommandDefinition(
+                @"INSERT INTO mint_yearly_balance(year_end, actual_oz, actual_invested)
+                  VALUES (@YearEnd, @ActualOz, @ActualInvested)
+                  ON CONFLICT(year_end) DO NOTHING;",
+                b,
+                cancellationToken: ct)).ConfigureAwait(false);
+        }
+    }
+
+    // ---- Fortnight Actuals ----
+
+    public async Task<IReadOnlyList<MintFortnightActual>> GetFortnightActualsAsync(CancellationToken ct = default)
+    {
+        await using var conn = _factory.Open();
+        var rows = await conn.QueryAsync<MintFortnightActual>(new CommandDefinition(
+            "SELECT fortnight_date, actual_oz, actual_contribution FROM mint_fortnight_actual ORDER BY fortnight_date;",
+            cancellationToken: ct)).ConfigureAwait(false);
+        return rows.AsList();
+    }
+
+    public async Task UpsertFortnightActualAsync(MintFortnightActual actual, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(actual);
+        await using var conn = _factory.Open();
+        await conn.ExecuteAsync(new CommandDefinition(
+            @"INSERT INTO mint_fortnight_actual(fortnight_date, actual_oz, actual_contribution)
+              VALUES (@FortnightDate, @ActualOz, @ActualContribution)
+              ON CONFLICT(fortnight_date) DO UPDATE SET
+                  actual_oz = excluded.actual_oz,
+                  actual_contribution = excluded.actual_contribution;",
+            actual,
+            cancellationToken: ct)).ConfigureAwait(false);
+    }
 }

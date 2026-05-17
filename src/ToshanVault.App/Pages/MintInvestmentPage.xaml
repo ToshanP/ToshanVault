@@ -145,6 +145,7 @@
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
                                            VerticalAlignment="Center" />
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                    <Button x:Name="ExpandYearlyBtn" Content="▶ Expand" Click="ExpandYearly_Click" IsEnabled="False" />
                                     <Button x:Name="EditYearlyBtn" Content="✏ Edit" Click="EditYearly_Click" IsEnabled="False" />
                                 </StackPanel>
                             </Grid>
@@ -167,6 +168,32 @@
                                     <dg:DataGridTextColumn Header="Actual Invested" Binding="{Binding ActualInvestedDisplay}" Width="*" />
                                 </dg:DataGrid.Columns>
                             </dg:DataGrid>
+
+                            <!-- Fortnightly drill-down panel -->
+                            <Border x:Name="FortnightDetailBorder"
+                                    Visibility="Collapsed"
+                                    Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,4,0,0">
+                                <StackPanel Spacing="4">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock x:Name="FortnightDetailTitle" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                            <Button x:Name="EditFortnightBtn" Content="✏ Edit" Click="EditFortnight_Click" IsEnabled="False" />
+                                            <Button Content="✕ Close" Click="CloseFortnightDetail_Click" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <ListView x:Name="FortnightList"
+                                              SelectionMode="Single"
+                                              SelectionChanged="FortnightList_SelectionChanged"
+                                              DoubleTapped="FortnightList_DoubleTapped"
+                                              MaxHeight="400" />
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Border>
                 </PivotItem>
