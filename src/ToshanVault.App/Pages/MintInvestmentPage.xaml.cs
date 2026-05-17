@@ -157,6 +157,14 @@ public sealed partial class MintInvestmentPage : Page
         var hasSelection = YearlyBalanceGrid.SelectedItem is YearlyBalanceVm;
         EditYearlyBtn.IsEnabled = hasSelection;
         ExpandYearlyBtn.IsEnabled = hasSelection;
+
+        // Auto-refresh the detail panel when a different row is selected while expanded
+        if (FortnightDetailBorder.Visibility == Visibility.Visible
+            && YearlyBalanceGrid.SelectedItem is YearlyBalanceVm selected
+            && selected != _expandedYear)
+        {
+            ExpandYearly_Click(sender, new RoutedEventArgs());
+        }
     }
 
     private async void EditYearly_Click(object sender, RoutedEventArgs e)
