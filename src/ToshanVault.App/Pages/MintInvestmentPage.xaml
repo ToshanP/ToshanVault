@@ -136,24 +136,35 @@
                             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                             BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,12,0,0">
                         <StackPanel Spacing="10">
-                            <TextBlock Text="Expected and actual balance at the end of each Australian financial year (30 June)."
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Expected and actual balance at the end of each Australian financial year (30 June)."
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
+                                           VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                    <Button x:Name="EditYearlyBtn" Content="✏ Edit" Click="EditYearly_Click" IsEnabled="False" />
+                                </StackPanel>
+                            </Grid>
                             <dg:DataGrid x:Name="YearlyBalanceGrid"
                                          AutoGenerateColumns="False"
                                          SelectionMode="Single"
-                                         IsReadOnly="False"
+                                         IsReadOnly="True"
                                          CanUserSortColumns="False"
                                          GridLinesVisibility="Horizontal"
                                          HeadersVisibility="Column"
-                                         CellEditEnded="YearlyBalanceGrid_CellEditEnded">
+                                         SelectionChanged="YearlyBalanceGrid_SelectionChanged"
+                                         DoubleTapped="YearlyBalanceGrid_DoubleTapped">
                                 <dg:DataGrid.Columns>
-                                    <dg:DataGridTextColumn Header="Financial Year" Binding="{Binding YearLabel}" IsReadOnly="True" Width="*" />
-                                    <dg:DataGridTextColumn Header="Target Oz" Binding="{Binding TargetOzDisplay}" IsReadOnly="True" Width="*" />
-                                    <dg:DataGridTextColumn Header="Target Value" Binding="{Binding TargetValueDisplay}" IsReadOnly="True" Width="*" />
-                                    <dg:DataGridTextColumn Header="Actual Oz" Binding="{Binding ActualOz, Mode=TwoWay}" Width="*" />
-                                    <dg:DataGridTextColumn Header="Actual Value" Binding="{Binding ActualValueDisplay}" IsReadOnly="True" Width="*" />
-                                    <dg:DataGridTextColumn Header="Target Invested" Binding="{Binding TargetInvestedDisplay}" IsReadOnly="True" Width="*" />
-                                    <dg:DataGridTextColumn Header="Actual Invested" Binding="{Binding ActualInvested, Mode=TwoWay}" Width="*" />
+                                    <dg:DataGridTextColumn Header="Financial Year" Binding="{Binding YearLabel}" Width="*" />
+                                    <dg:DataGridTextColumn Header="Target Oz" Binding="{Binding TargetOzDisplay}" Width="*" />
+                                    <dg:DataGridTextColumn Header="Target Value" Binding="{Binding TargetValueDisplay}" Width="*" />
+                                    <dg:DataGridTextColumn Header="Actual Oz" Binding="{Binding ActualOzDisplay}" Width="*" />
+                                    <dg:DataGridTextColumn Header="Actual Value" Binding="{Binding ActualValueDisplay}" Width="*" />
+                                    <dg:DataGridTextColumn Header="Target Invested" Binding="{Binding TargetInvestedDisplay}" Width="*" />
+                                    <dg:DataGridTextColumn Header="Actual Invested" Binding="{Binding ActualInvestedDisplay}" Width="*" />
                                 </dg:DataGrid.Columns>
                             </dg:DataGrid>
                         </StackPanel>

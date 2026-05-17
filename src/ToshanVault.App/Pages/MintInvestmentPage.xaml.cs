@@ -120,18 +120,39 @@ public sealed partial class MintInvestmentPage : Page
         return ends;
     }
 
-    private async void YearlyBalanceGrid_CellEditEnded(object sender, DataGridCellEditEndedEventArgs e)
+    private async void YearlyBalanceGrid_DoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
     {
-        if (e.Row.DataContext is not YearlyBalanceVm vm) return;
+        if (YearlyBalanceGrid.SelectedItem is YearlyBalanceVm vm) await EditYearlyAsync(vm);
+    }
+
+    private void YearlyBalanceGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        EditYearlyBtn.IsEnabled = YearlyBalanceGrid.SelectedItem is YearlyBalanceVm;
+    }
+
+    private async void EditYearly_Click(object sender, RoutedEventArgs e)
+    {
+        if (YearlyBalanceGrid.SelectedItem is YearlyBalanceVm vm) await EditYearlyAsync(vm);
+    }
+
+    private async Task EditYearlyAsync(YearlyBalanceVm vm)
+    {
         try
         {
+            var dlg = new MintYearlyBalanceDialog(this.XamlRoot, vm);
+            if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+
             await _repo.UpsertYearlyBalanceAsync(new MintYearlyBalance
             {
                 YearEnd = vm.YearEnd,
-                ActualOz = vm.ActualOz,
-                ActualInvested = vm.ActualInvested,
+                ActualOz = dlg.ResultActualOz,
+                ActualInvested = dlg.ResultActualInvested,
             });
+
+            vm.ActualOz = dlg.ResultActualOz;
+            vm.ActualInvested = dlg.ResultActualInvested;
             vm.RefreshComputed();
+            ShowInfo($"Saved {vm.YearLabel}.");
         }
         catch (Exception ex)
         {
@@ -320,20 +341,24 @@ internal sealed class YearlyBalanceVm : INotifyPropertyChanged
     public double ActualOz
     {
         get => _actualOz;
-        set { _actualOz = value; OnPropertyChanged(nameof(ActualOz)); RefreshComputed(); }
+        set { _actualOz = value; OnPropertyChanged(nameof(ActualOz)); OnPropertyChanged(nameof(ActualOzDisplay)); RefreshComputed(); }
     }
 
     public double ActualInvested
     {
         get => _actualInvested;
-        set { _actualInvested = value; OnPropertyChanged(nameof(ActualInvested)); }
+        set { _actualInvested = value; OnPropertyChanged(nameof(ActualInvested)); OnPropertyChanged(nameof(ActualInvestedDisplay)); }
     }
 
+    public string ActualOzDisplay => $"{_actualOz:N1}";
+    public string ActualInvestedDisplay => _actualInvested.ToString("C0", Aud);
     public string ActualValueDisplay => (_actualOz * _pricePerOz).ToString("C0", Aud);
 
     public void RefreshComputed()
     {
         OnPropertyChanged(nameof(ActualValueDisplay));
+        OnPropertyChanged(nameof(ActualOzDisplay));
+        OnPropertyChanged(nameof(ActualInvestedDisplay));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
